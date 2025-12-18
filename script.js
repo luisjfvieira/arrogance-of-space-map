@@ -1,20 +1,25 @@
-// Initialize MapLibre map
+// Map initialization with valid style
 const map = new maplibregl.Map({
   container: 'map',
-  center: [0, 0], // global center
-  zoom: 2,
   style: {
     version: 8,
+    name: 'Satellite with grid',
     sources: {},
     layers: []
-  }
+  },
+  center: [0, 0],
+  zoom: 2
 });
 
 const CELL_SIZE = 50; // max cell size in meters
 let cells = [];
 let selected = new Set();
 
-// Convert meters to approximate degrees
+// Drag-box variables
+let dragStart = null;
+const dragBox = document.getElementById('drag-box');
+
+// Helper: meters -> degrees
 function metersToDegrees(m) {
   return m / 111320;
 }
@@ -68,7 +73,6 @@ function cellsToGeoJSON() {
   };
 }
 
-// Update the grid source on the map
 function updateGridSource() {
   if (map.getSource('grid')) {
     map.getSource('grid').setData(cellsToGeoJSON());
@@ -77,7 +81,7 @@ function updateGridSource() {
 
 // Map load
 map.on('load', () => {
-  // Add global NASA Blue Marble satellite tiles (public domain, keyless)
+  // Add NASA Blue Marble satellite tiles (keyless, commercial use)
   map.addSource('basemap', {
     type: 'raster',
     tiles: [
@@ -92,7 +96,7 @@ map.on('load', () => {
     source: 'basemap'
   });
 
-  // Generate initial grid for current view
+  // Generate initial grid
   generateGridForView();
 
   // Add grid source and layer
@@ -116,15 +120,54 @@ map.on('load', () => {
     }
   });
 
-  // Click to select/unselect a cell
-  map.on('click', 'grid', e => {
-    const id = e.features[0].properties.id;
-    selected.has(id) ? selected.delete(id) : selected.add(id);
-    updateGridSource();
+  // Dynamically generate grid when moving map
+  map.on('moveend', generateGridForView);
+
+  // Enable drag-box selection
+  map.getCanvas().addEventListener('mousedown', e => {
+    if (e.button !== 0) return; // only left button
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragBox.style.left = dragStart.x + 'px';
+    dragBox.style.top = dragStart.y + 'px';
+    dragBox.style.width = '0px';
+    dragBox.style.height = '0px';
+    dragBox.style.display = 'block';
   });
 
-  // Dynamically generate new grid cells when panning or zooming
-  map.on('moveend', generateGridForView);
+  map.getCanvas().addEventListener('mousemove', e => {
+    if (!dragStart) return;
+    const x = Math.min(e.clientX, dragStart.x);
+    const y = Math.min(e.clientY, dragStart.y);
+    const w = Math.abs(e.clientX - dragStart.x);
+    const h = Math.abs(e.clientY - dragStart.y);
+    dragBox.style.left = x + 'px';
+    dragBox.style.top = y + 'px';
+    dragBox.style.width = w + 'px';
+    dragBox.style.height = h + 'px';
+  });
+
+  map.getCanvas().addEventListener('mouseup', e => {
+    if (!dragStart) return;
+    const bounds = [
+      map.unproject([dragStart.x, dragStart.y]),
+      map.unproject([e.clientX, e.clientY])
+    ];
+    const minLon = Math.min(bounds[0].lng, bounds[1].lng);
+    const maxLon = Math.max(bounds[0].lng, bounds[1].lng);
+    const minLat = Math.min(bounds[0].lat, bounds[1].lat);
+    const maxLat = Math.max(bounds[0].lat, bounds[1].lat);
+
+    // Select all cells within drag box
+    cells.forEach(c => {
+      if (c.minX <= maxLon && c.maxX >= minLon &&
+          c.minY <= maxLat && c.maxY >= minLat) {
+        selected.add(c.id);
+      }
+    });
+    updateGridSource();
+    dragStart = null;
+    dragBox.style.display = 'none';
+  });
 });
 
 // Subdivide selected cells by ratio
