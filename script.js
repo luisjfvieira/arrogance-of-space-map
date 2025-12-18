@@ -1,70 +1,34 @@
-// Initialize MapLibre with a fully valid style using OSM as base
 const map = new maplibregl.Map({
   container: 'map',
-  style: {
-    version: 8,
-    name: 'Map with grid',
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256
-      }
-    },
-    layers: [
-      {
-        id: 'osm',
-        type: 'raster',
-        source: 'osm'
-      }
-    ]
-  },
-  center: [0, 0],
-  zoom: 2
+  style: 'https://demotiles.maplibre.org/style.json',
+  center: [-9.14, 38.72], // Lisbon
+  zoom: 15
 });
 
-const CELL_SIZE = 50; // max cell size in meters
+const CELL_SIZE = 50; // meters
 let cells = [];
 let selected = new Set();
 
-// Drag-box variables
-let dragStart = null;
-const dragBox = document.getElementById('drag-box');
-
-// Convert meters -> degrees approx
 function metersToDegrees(m) {
   return m / 111320;
 }
 
-// Generate grid dynamically for current viewport
-function generateGridForView() {
-  const bounds = map.getBounds();
-  const minX = bounds.getWest();
-  const minY = bounds.getSouth();
-  const maxX = bounds.getEast();
-  const maxY = bounds.getNorth();
-  const sizeDeg = metersToDegrees(CELL_SIZE);
-
-  const newCells = [];
-  for (let x = Math.floor(minX / sizeDeg); x <= Math.ceil(maxX / sizeDeg); x++) {
-    for (let y = Math.floor(minY / sizeDeg); y <= Math.ceil(maxY / sizeDeg); y++) {
-      const id = `${x}_${y}`;
-      if (!cells.some(c => c.id === id)) {
-        newCells.push({
-          id: id,
-          minX: x * sizeDeg,
-          minY: y * sizeDeg,
-          maxX: (x + 1) * sizeDeg,
-          maxY: (y + 1) * sizeDeg
-        });
-      }
+function generateInitialGrid(center, sizeMeters, extent = 10) {
+  const sizeDeg = metersToDegrees(sizeMeters);
+  const [cx, cy] = center;
+  for (let x = -extent; x <= extent; x++) {
+    for (let y = -extent; y <= extent; y++) {
+      cells.push({
+        id: crypto.randomUUID(),
+        minX: cx + x * sizeDeg,
+        minY: cy + y * sizeDeg,
+        maxX: cx + (x + 1) * sizeDeg,
+        maxY: cy + (y + 1) * sizeDeg
+      });
     }
   }
-  cells = cells.concat(newCells);
-  updateGridSource();
 }
 
-// Convert cells -> GeoJSON
 function cellsToGeoJSON() {
   return {
     type: 'FeatureCollection',
@@ -85,27 +49,14 @@ function cellsToGeoJSON() {
   };
 }
 
-// Update grid source
-function updateGridSource() {
-  if (map.getSource('grid')) {
-    map.getSource('grid').setData(cellsToGeoJSON());
-  }
-}
-
 map.on('load', () => {
-  // Optional satellite overlay
-  map.addSource('satellite', {
-    type: 'raster',
-    tiles: [
-      'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/default/2000/{z}/{y}/{x}.jpg'
-    ],
-    tileSize: 256
-  });
-  map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' });
+  generateInitialGrid(map.getCenter().toArray(), CELL_SIZE);
 
-  // Grid layer
-  generateGridForView();
-  map.addSource('grid', { type: 'geojson', data: cellsToGeoJSON() });
+  map.addSource('grid', {
+    type: 'geojson',
+    data: cellsToGeoJSON()
+  });
+
   map.addLayer({
     id: 'grid',
     type: 'line',
@@ -115,81 +66,46 @@ map.on('load', () => {
         'case',
         ['in', ['get', 'id'], ['literal', Array.from(selected)]],
         '#ff0000',
-        '#ffffff'
+        '#000000'
       ],
       'line-width': 1
     }
   });
 
-  map.on('moveend', generateGridForView);
-
-  // --- Drag-box selection ---
-  map.getCanvas().addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
-    dragStart = { x: e.clientX, y: e.clientY };
-    dragBox.style.left = dragStart.x + 'px';
-    dragBox.style.top = dragStart.y + 'px';
-    dragBox.style.width = '0px';
-    dragBox.style.height = '0px';
-    dragBox.style.display = 'block';
-  });
-
-  map.getCanvas().addEventListener('mousemove', e => {
-    if (!dragStart) return;
-    const x = Math.min(e.clientX, dragStart.x);
-    const y = Math.min(e.clientY, dragStart.y);
-    const w = Math.abs(e.clientX - dragStart.x);
-    const h = Math.abs(e.clientY - dragStart.y);
-    dragBox.style.left = x + 'px';
-    dragBox.style.top = y + 'px';
-    dragBox.style.width = w + 'px';
-    dragBox.style.height = h + 'px';
-  });
-
-  map.getCanvas().addEventListener('mouseup', e => {
-    if (!dragStart) return;
-    const bounds = [
-      map.unproject([dragStart.x, dragStart.y]),
-      map.unproject([e.clientX, e.clientY])
-    ];
-    const minLon = Math.min(bounds[0].lng, bounds[1].lng);
-    const maxLon = Math.max(bounds[0].lng, bounds[1].lng);
-    const minLat = Math.min(bounds[0].lat, bounds[1].lat);
-    const maxLat = Math.max(bounds[0].lat, bounds[1].lat);
-
-    cells.forEach(c => {
-      if (c.minX <= maxLon && c.maxX >= minLon &&
-          c.minY <= maxLat && c.maxY >= minLat) {
-        selected.add(c.id);
-      }
-    });
-    updateGridSource();
-    dragStart = null;
-    dragBox.style.display = 'none';
+  map.on('click', 'grid', e => {
+    const id = e.features[0].properties.id;
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    map.getSource('grid').setData(cellsToGeoJSON());
   });
 });
 
-// --- Subdivide selected cells ---
 document.getElementById('subdivide').onclick = () => {
   const ratio = parseInt(document.getElementById('ratio').value);
   const newCells = [];
+
   cells.forEach(c => {
-    if (!selected.has(c.id)) { newCells.push(c); return; }
-    const dx = (c.maxX - c.minX)/ratio;
-    const dy = (c.maxY - c.minY)/ratio;
-    for (let i=0;i<ratio;i++){
-      for(let j=0;j<ratio;j++){
+    if (!selected.has(c.id)) {
+      newCells.push(c);
+      return;
+    }
+
+    const dx = (c.maxX - c.minX) / ratio;
+    const dy = (c.maxY - c.minY) / ratio;
+
+    for (let i = 0; i < ratio; i++) {
+      for (let j = 0; j < ratio; j++) {
         newCells.push({
-          id:`${c.id}_${i}_${j}`,
-          minX:c.minX + i*dx,
-          minY:c.minY + j*dy,
-          maxX:c.minX + (i+1)*dx,
-          maxY:c.minY + (j+1)*dy
+          id: crypto.randomUUID(),
+          minX: c.minX + i * dx,
+          minY: c.minY + j * dy,
+          maxX: c.minX + (i + 1) * dx,
+          maxY: c.minY + (j + 1) * dy
         });
       }
     }
   });
+
   cells = newCells;
   selected.clear();
-  updateGridSource();
+  map.getSource('grid').setData(cellsToGeoJSON());
 };
