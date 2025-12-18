@@ -1,34 +1,48 @@
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://demotiles.maplibre.org/style.json',
-  center: [-9.14, 38.72], // Lisbon
-  zoom: 15
+  style: 'https://api.maptiler.com/maps/satellite/style.json?key=YOUR_MAPTILER_KEY', // satellite basemap
+  center: [0, 0], // global center
+  zoom: 2
 });
 
-const CELL_SIZE = 50; // meters
+const CELL_SIZE = 50; // max size in meters
 let cells = [];
 let selected = new Set();
 
+// Helper: meters -> degrees approximation
 function metersToDegrees(m) {
   return m / 111320;
 }
 
-function generateInitialGrid(center, sizeMeters, extent = 10) {
-  const sizeDeg = metersToDegrees(sizeMeters);
-  const [cx, cy] = center;
-  for (let x = -extent; x <= extent; x++) {
-    for (let y = -extent; y <= extent; y++) {
-      cells.push({
-        id: crypto.randomUUID(),
-        minX: cx + x * sizeDeg,
-        minY: cy + y * sizeDeg,
-        maxX: cx + (x + 1) * sizeDeg,
-        maxY: cy + (y + 1) * sizeDeg
-      });
+// Generate grid dynamically for the current view
+function generateGridForView() {
+  const bounds = map.getBounds();
+  const minX = bounds.getWest();
+  const minY = bounds.getSouth();
+  const maxX = bounds.getEast();
+  const maxY = bounds.getNorth();
+  const sizeDeg = metersToDegrees(CELL_SIZE);
+
+  const newCells = [];
+  for (let x = Math.floor(minX/sizeDeg); x <= Math.ceil(maxX/sizeDeg); x++) {
+    for (let y = Math.floor(minY/sizeDeg); y <= Math.ceil(maxY/sizeDeg); y++) {
+      const id = `${x}_${y}`;
+      if (!cells.some(c => c.id === id)) {
+        newCells.push({
+          id: id,
+          minX: x * sizeDeg,
+          minY: y * sizeDeg,
+          maxX: (x+1) * sizeDeg,
+          maxY: (y+1) * sizeDeg
+        });
+      }
     }
   }
+  cells = cells.concat(newCells);
+  updateGridSource();
 }
 
+// Convert cells to GeoJSON
 function cellsToGeoJSON() {
   return {
     type: 'FeatureCollection',
@@ -49,8 +63,15 @@ function cellsToGeoJSON() {
   };
 }
 
+function updateGridSource() {
+  if (map.getSource('grid')) {
+    map.getSource('grid').setData(cellsToGeoJSON());
+  }
+}
+
 map.on('load', () => {
-  generateInitialGrid(map.getCenter().toArray(), CELL_SIZE);
+  // Initial grid generation
+  generateGridForView();
 
   map.addSource('grid', {
     type: 'geojson',
@@ -66,19 +87,24 @@ map.on('load', () => {
         'case',
         ['in', ['get', 'id'], ['literal', Array.from(selected)]],
         '#ff0000',
-        '#000000'
+        '#ffffff'
       ],
       'line-width': 1
     }
   });
 
+  // Click to select cells
   map.on('click', 'grid', e => {
     const id = e.features[0].properties.id;
     selected.has(id) ? selected.delete(id) : selected.add(id);
-    map.getSource('grid').setData(cellsToGeoJSON());
+    updateGridSource();
   });
+
+  // Dynamically generate grid when moving the map
+  map.on('moveend', generateGridForView);
 });
 
+// Subdivide selected cells
 document.getElementById('subdivide').onclick = () => {
   const ratio = parseInt(document.getElementById('ratio').value);
   const newCells = [];
@@ -95,7 +121,7 @@ document.getElementById('subdivide').onclick = () => {
     for (let i = 0; i < ratio; i++) {
       for (let j = 0; j < ratio; j++) {
         newCells.push({
-          id: crypto.randomUUID(),
+          id: `${c.id}_${i}_${j}`,
           minX: c.minX + i * dx,
           minY: c.minY + j * dy,
           maxX: c.minX + (i + 1) * dx,
@@ -107,5 +133,5 @@ document.getElementById('subdivide').onclick = () => {
 
   cells = newCells;
   selected.clear();
-  map.getSource('grid').setData(cellsToGeoJSON());
+  updateGridSource();
 };
