@@ -1,8 +1,9 @@
-// Initialize MapLibre with OSM as guaranteed base layer
+// Initialize MapLibre with a fully valid style using OSM as base
 const map = new maplibregl.Map({
   container: 'map',
   style: {
     version: 8,
+    name: 'Map with grid',
     sources: {
       osm: {
         type: 'raster',
@@ -120,7 +121,6 @@ map.on('load', () => {
     }
   });
 
-  // Update grid when viewport changes
   map.on('moveend', generateGridForView);
 
   // --- Drag-box selection ---
