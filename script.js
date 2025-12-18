@@ -1,4 +1,4 @@
-// Map initialization with valid style
+// Initialize MapLibre map with valid style
 const map = new maplibregl.Map({
   container: 'map',
   style: {
@@ -19,12 +19,12 @@ let selected = new Set();
 let dragStart = null;
 const dragBox = document.getElementById('drag-box');
 
-// Helper: meters -> degrees
+// Convert meters -> degrees approx
 function metersToDegrees(m) {
   return m / 111320;
 }
 
-// Generate grid dynamically for current map viewport
+// Generate grid dynamically for current viewport
 function generateGridForView() {
   const bounds = map.getBounds();
   const minX = bounds.getWest();
@@ -34,16 +34,16 @@ function generateGridForView() {
   const sizeDeg = metersToDegrees(CELL_SIZE);
 
   const newCells = [];
-  for (let x = Math.floor(minX/sizeDeg); x <= Math.ceil(maxX/sizeDeg); x++) {
-    for (let y = Math.floor(minY/sizeDeg); y <= Math.ceil(maxY/sizeDeg); y++) {
+  for (let x = Math.floor(minX / sizeDeg); x <= Math.ceil(maxX / sizeDeg); x++) {
+    for (let y = Math.floor(minY / sizeDeg); y <= Math.ceil(maxY / sizeDeg); y++) {
       const id = `${x}_${y}`;
       if (!cells.some(c => c.id === id)) {
         newCells.push({
           id: id,
           minX: x * sizeDeg,
           minY: y * sizeDeg,
-          maxX: (x+1) * sizeDeg,
-          maxY: (y+1) * sizeDeg
+          maxX: (x + 1) * sizeDeg,
+          maxY: (y + 1) * sizeDeg
         });
       }
     }
@@ -52,7 +52,7 @@ function generateGridForView() {
   updateGridSource();
 }
 
-// Convert cells array to GeoJSON
+// Convert cells array -> GeoJSON
 function cellsToGeoJSON() {
   return {
     type: 'FeatureCollection',
@@ -73,6 +73,7 @@ function cellsToGeoJSON() {
   };
 }
 
+// Update grid source
 function updateGridSource() {
   if (map.getSource('grid')) {
     map.getSource('grid').setData(cellsToGeoJSON());
@@ -81,7 +82,7 @@ function updateGridSource() {
 
 // Map load
 map.on('load', () => {
-  // Add NASA Blue Marble satellite tiles (keyless, commercial use)
+  // Add NASA Blue Marble raster tiles (keyless, commercial-friendly)
   map.addSource('basemap', {
     type: 'raster',
     tiles: [
@@ -100,10 +101,7 @@ map.on('load', () => {
   generateGridForView();
 
   // Add grid source and layer
-  map.addSource('grid', {
-    type: 'geojson',
-    data: cellsToGeoJSON()
-  });
+  map.addSource('grid', { type: 'geojson', data: cellsToGeoJSON() });
 
   map.addLayer({
     id: 'grid',
@@ -120,12 +118,12 @@ map.on('load', () => {
     }
   });
 
-  // Dynamically generate grid when moving map
+  // Regenerate grid on viewport changes
   map.on('moveend', generateGridForView);
 
-  // Enable drag-box selection
+  // --- Drag-box selection ---
   map.getCanvas().addEventListener('mousedown', e => {
-    if (e.button !== 0) return; // only left button
+    if (e.button !== 0) return; // left click only
     dragStart = { x: e.clientX, y: e.clientY };
     dragBox.style.left = dragStart.x + 'px';
     dragBox.style.top = dragStart.y + 'px';
@@ -148,6 +146,7 @@ map.on('load', () => {
 
   map.getCanvas().addEventListener('mouseup', e => {
     if (!dragStart) return;
+
     const bounds = [
       map.unproject([dragStart.x, dragStart.y]),
       map.unproject([e.clientX, e.clientY])
@@ -157,20 +156,21 @@ map.on('load', () => {
     const minLat = Math.min(bounds[0].lat, bounds[1].lat);
     const maxLat = Math.max(bounds[0].lat, bounds[1].lat);
 
-    // Select all cells within drag box
+    // Select all cells inside drag box
     cells.forEach(c => {
       if (c.minX <= maxLon && c.maxX >= minLon &&
           c.minY <= maxLat && c.maxY >= minLat) {
         selected.add(c.id);
       }
     });
+
     updateGridSource();
     dragStart = null;
     dragBox.style.display = 'none';
   });
 });
 
-// Subdivide selected cells by ratio
+// Subdivide selected cells
 document.getElementById('subdivide').onclick = () => {
   const ratio = parseInt(document.getElementById('ratio').value);
   const newCells = [];
