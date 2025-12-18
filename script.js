@@ -1,16 +1,28 @@
+// Initialize MapLibre with OSM as guaranteed base layer
 const map = new maplibregl.Map({
   container: 'map',
   style: {
     version: 8,
-    name: 'Incremental Map with fallback',
-    sources: {},
-    layers: []
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256
+      }
+    },
+    layers: [
+      {
+        id: 'osm',
+        type: 'raster',
+        source: 'osm'
+      }
+    ]
   },
   center: [0, 0],
   zoom: 2
 });
 
-const CELL_SIZE = 50;
+const CELL_SIZE = 50; // max cell size in meters
 let cells = [];
 let selected = new Set();
 
@@ -18,8 +30,12 @@ let selected = new Set();
 let dragStart = null;
 const dragBox = document.getElementById('drag-box');
 
-function metersToDegrees(m) { return m / 111320; }
+// Convert meters -> degrees approx
+function metersToDegrees(m) {
+  return m / 111320;
+}
 
+// Generate grid dynamically for current viewport
 function generateGridForView() {
   const bounds = map.getBounds();
   const minX = bounds.getWest();
@@ -29,16 +45,16 @@ function generateGridForView() {
   const sizeDeg = metersToDegrees(CELL_SIZE);
 
   const newCells = [];
-  for (let x = Math.floor(minX/sizeDeg); x <= Math.ceil(maxX/sizeDeg); x++) {
-    for (let y = Math.floor(minY/sizeDeg); y <= Math.ceil(maxY/sizeDeg); y++) {
+  for (let x = Math.floor(minX / sizeDeg); x <= Math.ceil(maxX / sizeDeg); x++) {
+    for (let y = Math.floor(minY / sizeDeg); y <= Math.ceil(maxY / sizeDeg); y++) {
       const id = `${x}_${y}`;
       if (!cells.some(c => c.id === id)) {
         newCells.push({
           id: id,
           minX: x * sizeDeg,
           minY: y * sizeDeg,
-          maxX: (x+1) * sizeDeg,
-          maxY: (y+1) * sizeDeg
+          maxX: (x + 1) * sizeDeg,
+          maxY: (y + 1) * sizeDeg
         });
       }
     }
@@ -47,6 +63,7 @@ function generateGridForView() {
   updateGridSource();
 }
 
+// Convert cells -> GeoJSON
 function cellsToGeoJSON() {
   return {
     type: 'FeatureCollection',
@@ -67,6 +84,7 @@ function cellsToGeoJSON() {
   };
 }
 
+// Update grid source
 function updateGridSource() {
   if (map.getSource('grid')) {
     map.getSource('grid').setData(cellsToGeoJSON());
@@ -74,15 +92,7 @@ function updateGridSource() {
 }
 
 map.on('load', () => {
-  // --- Fallback OSM layer ---
-  map.addSource('osm', {
-    type: 'raster',
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-    tileSize: 256
-  });
-  map.addLayer({ id: 'osm', type: 'raster', source: 'osm' });
-
-  // --- Satellite layer on top ---
+  // Optional satellite overlay
   map.addSource('satellite', {
     type: 'raster',
     tiles: [
@@ -92,7 +102,7 @@ map.on('load', () => {
   });
   map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' });
 
-  // --- Grid layer ---
+  // Grid layer
   generateGridForView();
   map.addSource('grid', { type: 'geojson', data: cellsToGeoJSON() });
   map.addLayer({
@@ -110,6 +120,7 @@ map.on('load', () => {
     }
   });
 
+  // Update grid when viewport changes
   map.on('moveend', generateGridForView);
 
   // --- Drag-box selection ---
@@ -122,6 +133,7 @@ map.on('load', () => {
     dragBox.style.height = '0px';
     dragBox.style.display = 'block';
   });
+
   map.getCanvas().addEventListener('mousemove', e => {
     if (!dragStart) return;
     const x = Math.min(e.clientX, dragStart.x);
@@ -133,6 +145,7 @@ map.on('load', () => {
     dragBox.style.width = w + 'px';
     dragBox.style.height = h + 'px';
   });
+
   map.getCanvas().addEventListener('mouseup', e => {
     if (!dragStart) return;
     const bounds = [
