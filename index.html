@@ -1,47 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Incremental Satellite Grid Mapping - Arroios</title>
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-  <style>
-    body { margin: 0; }
-    #map { width: 100vw; height: 100vh; }
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 12px;
-      font-family: sans-serif;
-      z-index: 10; /* High z-index to stay above map */
-      border-radius: 4px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    .control-group { margin-bottom: 10px; }
-    hr { border: 0; border-top: 1px solid #ccc; margin: 10px 0; }
-    button { cursor: pointer; padding: 5px 10px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Grid Explorer</title>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="controls">
-    <div class="control-group">
-      <strong>Subdivision ratio:</strong><br>
-      <select id="ratio">
-        <option value="2">2 × 2</option>
-        <option value="3">3 × 3</option>
-        <option value="5">5 × 5</option>
-      </select>
-    </div>
-    <button id="subdivide">Subdivide selected</button>
-    <hr>
-    <label style="cursor: pointer;">
-      <input type="checkbox" id="satellite-toggle"> <strong>Satellite View</strong>
-    </label>
-  </div>
-  <div id="map"></div>
+    <div id="map"></div>
 
-  <script src="script.js"></script>
+    <div id="ui-panel">
+        <h2>Map Controls</h2>
+        
+        <div class="control-group">
+            <label>Base Layer:</label>
+            <select id="layer-selector">
+                <option value="vector">Vector (Streets)</option>
+                <option value="satellite">Satellite Imagery</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Overlay Layer:</label>
+            <input type="checkbox" id="grid-toggle" checked> Show Grid
+        </div>
+
+        <div id="status">Zoom Level: <span id="zoom-val">0</span></div>
+        
+        <hr>
+        <div id="interaction-zone">
+            <p><small>Click a cell to interact.</small></p>
+        </div>
+    </div>
+
+    <script src="map-config.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
