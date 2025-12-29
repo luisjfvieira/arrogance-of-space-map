@@ -15,18 +15,19 @@
       background: white;
       padding: 12px;
       font-family: sans-serif;
-      z-index: 2;
+      z-index: 10; /* High z-index to stay above map */
       border-radius: 4px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .control-group { margin-bottom: 10px; }
     hr { border: 0; border-top: 1px solid #ccc; margin: 10px 0; }
+    button { cursor: pointer; padding: 5px 10px; }
   </style>
 </head>
 <body>
   <div id="controls">
     <div class="control-group">
-      Subdivision ratio:
+      <strong>Subdivision ratio:</strong><br>
       <select id="ratio">
         <option value="2">2 × 2</option>
         <option value="3">3 × 3</option>
@@ -35,8 +36,8 @@
     </div>
     <button id="subdivide">Subdivide selected</button>
     <hr>
-    <label>
-      <input type="checkbox" id="satellite-toggle"> Satellite View
+    <label style="cursor: pointer;">
+      <input type="checkbox" id="satellite-toggle"> <strong>Satellite View</strong>
     </label>
   </div>
   <div id="map"></div>
