@@ -1,31 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Grid Explorer</title>
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div id="map"></div>
+body { margin: 0; padding: 0; font-family: sans-serif; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #ffffff; }
 
-    <div id="ui-panel">
-        <h2>Map Controls</h2>
-        
-        <div class="control-group">
-            <label>Base Map View:</label>
-            <select id="layer-selector">
-                <option value="vector">Vector (Street Map)</option>
-                <option value="satellite">Satellite Imagery</option>
-            </select>
-        </div>
+#ui-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 220px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 10;
+}
 
-        <div id="status">Zoom Level: <span id="zoom-val">13.0</span></div>
-    </div>
-
-    <script src="map-config.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+.control-group { margin-bottom: 10px; }
+label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+select { width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
+#status { font-size: 12px; color: #444; margin-top: 10px; border-top: 1px solid #eee; pt: 5px; }
