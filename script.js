@@ -1,7 +1,18 @@
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://demotiles.maplibre.org/style.json',
-  center: [-9.135, 38.725], // Centered on Arroios, Lisbon
+  // Using a very minimal style so grid lines are clear
+  style: {
+    "version": 8,
+    "sources": {},
+    "layers": [
+      {
+        "id": "background",
+        "type": "background",
+        "paint": { "background-color": "#f8f8f8" }
+      }
+    ]
+  },
+  center: [-9.135, 38.725], // Arroios, Lisbon
   zoom: 15
 });
 
@@ -52,74 +63,87 @@ function cellsToGeoJSON() {
 map.on('load', () => {
   generateInitialGrid(map.getCenter().toArray(), CELL_SIZE);
 
-  // Add Free Satellite Source (Esri World Imagery)
-  map.addSource('satellite', {
+  // 1. Add Satellite Source
+  map.addSource('satellite-source', {
     type: 'raster',
     tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
     tileSize: 256,
     attribution: 'Tiles &copy; Esri'
   });
 
+  // 2. Add Satellite Layer (Hidden by default, placed at the bottom)
   map.addLayer({
     id: 'satellite-layer',
     type: 'raster',
-    source: 'satellite',
+    source: 'satellite-source',
     layout: { visibility: 'none' }
-  });
+  }, 'background'); // 'background' ensures it's at the very bottom
 
-  map.addSource('grid', {
+  // 3. Add Grid Source
+  map.addSource('grid-source', {
     type: 'geojson',
     data: cellsToGeoJSON()
   });
 
-  // Invisible fill layer to make clicking easier
+  // 4. Add Grid Fill (for clicking)
   map.addLayer({
     id: 'grid-fill',
     type: 'fill',
-    source: 'grid',
+    source: 'grid-source',
     paint: {
       'fill-color': '#ff0000',
-      'fill-opacity': 0.3
-    },
-    filter: ['in', ['get', 'id'], ['literal', Array.from(selected)]]
+      'fill-opacity': [
+        'case',
+        ['in', ['get', 'id'], ['literal', Array.from(selected)]],
+        0.3,
+        0 // Transparent if not selected
+      ]
+    }
   });
 
+  // 5. Add Grid Lines
   map.addLayer({
     id: 'grid-lines',
     type: 'line',
-    source: 'grid',
+    source: 'grid-source',
     paint: {
-      'line-color': '#000000',
+      'line-color': '#333333',
       'line-width': 1
     }
   });
 
-  // Click handler to toggle selection
+  // Interactivity: Selection
   map.on('click', 'grid-fill', (e) => {
     const id = e.features[0].properties.id;
-    if (selected.has(id)) {
-      selected.delete(id);
-    } else {
-      selected.add(id);
-    }
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
     
-    // Update the visual selection filter
-    map.setFilter('grid-fill', ['in', ['get', 'id'], ['literal', Array.from(selected)]]);
+    // Efficiently update the paint property without reloading the whole GeoJSON
+    map.setPaintProperty('grid-fill', 'fill-opacity', [
+      'case',
+      ['in', ['get', 'id'], ['literal', Array.from(selected)]],
+      0.3,
+      0
+    ]);
   });
 
-  // Change cursor on hover
   map.on('mouseenter', 'grid-fill', () => map.getCanvas().style.cursor = 'pointer');
   map.on('mouseleave', 'grid-fill', () => map.getCanvas().style.cursor = '');
 });
 
-// Toggle Satellite Layer
-document.getElementById('satellite-toggle').onchange = (e) => {
+// Satellite Toggle
+document.getElementById('satellite-toggle').addEventListener('change', (e) => {
   const visibility = e.target.checked ? 'visible' : 'none';
   map.setLayoutProperty('satellite-layer', 'visibility', visibility);
-};
+});
 
-// Subdivision Logic
+// Subdivide Selected
 document.getElementById('subdivide').onclick = () => {
+  if (selected.size === 0) {
+    alert("Please click a cell to select it first!");
+    return;
+  }
+
   const ratio = parseInt(document.getElementById('ratio').value);
   const newCells = [];
 
@@ -147,6 +171,13 @@ document.getElementById('subdivide').onclick = () => {
 
   cells = newCells;
   selected.clear();
-  map.getSource('grid').setData(cellsToGeoJSON());
-  map.setFilter('grid-fill', ['in', ['get', 'id'], ['literal', []]]);
+  
+  // Refresh the map data and reset the visual selection state
+  map.getSource('grid-source').setData(cellsToGeoJSON());
+  map.setPaintProperty('grid-fill', 'fill-opacity', [
+    'case',
+    ['in', ['get', 'id'], ['literal', []]],
+    0.3,
+    0
+  ]);
 };
