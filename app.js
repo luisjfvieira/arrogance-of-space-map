@@ -1,49 +1,49 @@
+// Initialize map with a blank style to avoid external dependency issues
 const map = new maplibregl.Map({
     container: 'map',
     style: {
         version: 8,
         sources: {},
-        layers: []
+        layers: [
+            {
+                id: 'background',
+                type: 'background',
+                paint: { 'background-color': '#e0e0e0' }
+            }
+        ]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom
 });
 
 map.on('load', () => {
-    // 1. Add Sources
-    map.addSource('base-satellite', MAP_SOURCES.satellite);
-    map.addSource('base-vector', MAP_SOURCES.vector);
+    console.log("Map engine loaded. Initializing layers...");
 
-    // 2. Add Layers
-    // We add vector first, then satellite on top
+    // 1. Add both sources to the map
+    map.addSource('src-vector', MAP_SOURCES.vector);
+    map.addSource('src-satellite', MAP_SOURCES.satellite);
+
+    // 2. Add the Layers
+    // We add them in order. The one added LAST is on TOP.
     map.addLayer({
         id: 'layer-vector',
         type: 'raster',
-        source: 'base-vector',
-        layout: { visibility: 'visible' }
+        source: 'src-vector',
+        layout: { visibility: 'visible' } // Start with Vector
     });
 
     map.addLayer({
         id: 'layer-satellite',
         type: 'raster',
-        source: 'base-satellite',
-        layout: { visibility: 'none' }
+        source: 'src-satellite',
+        layout: { visibility: 'none' } // Hidden initially
     });
 
-    // 3. Setup UI Listeners
-    setupControls();
-    
-    // Update zoom display
-    map.on('zoom', () => {
-        document.getElementById('zoom-val').innerText = map.getZoom().toFixed(1);
-    });
-});
-
-function setupControls() {
-    // Switch between Vector and Satellite
-    document.getElementById('layer-selector').addEventListener('change', (e) => {
-        const selected = e.target.value;
-        if (selected === 'satellite') {
+    // 3. Setup the Switcher Logic
+    const selector = document.getElementById('layer-selector');
+    selector.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'satellite') {
             map.setLayoutProperty('layer-satellite', 'visibility', 'visible');
             map.setLayoutProperty('layer-vector', 'visibility', 'none');
         } else {
@@ -52,12 +52,8 @@ function setupControls() {
         }
     });
 
-    // Toggle the interactive overlay (Grid)
-    document.getElementById('grid-toggle').addEventListener('change', (e) => {
-        const visibility = e.target.checked ? 'visible' : 'none';
-        // Logic for your grid layer will go here once we define it in the next step
-        if (map.getLayer('grid-layer')) {
-            map.setLayoutProperty('grid-layer', 'visibility', visibility);
-        }
+    // 4. Update Zoom UI
+    map.on('zoom', () => {
+        document.getElementById('zoom-val').innerText = map.getZoom().toFixed(1);
     });
-}
+});
