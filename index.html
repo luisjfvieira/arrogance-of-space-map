@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Incremental Satellite Grid Mapping</title>
+  <title>Incremental Satellite Grid Mapping - Arroios</title>
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
@@ -13,32 +13,33 @@
       top: 10px;
       left: 10px;
       background: white;
-      padding: 8px;
+      padding: 12px;
       font-family: sans-serif;
       z-index: 2;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    .drag-box {
-      position: absolute;
-      border: 2px dashed #ff0000;
-      background-color: rgba(255,0,0,0.2);
-      pointer-events: none;
-      z-index: 3;
-      display: none;
-    }
+    .control-group { margin-bottom: 10px; }
+    hr { border: 0; border-top: 1px solid #ccc; margin: 10px 0; }
   </style>
 </head>
 <body>
   <div id="controls">
-    Subdivision ratio:
-    <select id="ratio">
-      <option value="2">2 × 2</option>
-      <option value="3">3 × 3</option>
-      <option value="5">5 × 5</option>
-    </select>
+    <div class="control-group">
+      Subdivision ratio:
+      <select id="ratio">
+        <option value="2">2 × 2</option>
+        <option value="3">3 × 3</option>
+        <option value="5">5 × 5</option>
+      </select>
+    </div>
     <button id="subdivide">Subdivide selected</button>
+    <hr>
+    <label>
+      <input type="checkbox" id="satellite-toggle"> Satellite View
+    </label>
   </div>
   <div id="map"></div>
-  <div id="drag-box" class="drag-box"></div>
 
   <script src="script.js"></script>
 </body>
