@@ -1,7 +1,7 @@
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://demotiles.maplibre.org/style.json',
-  center: [-9.14, 38.72], // Lisbon
+  center: [-9.135, 38.725], // Centered on Arroios, Lisbon
   zoom: 15
 });
 
@@ -52,33 +52,73 @@ function cellsToGeoJSON() {
 map.on('load', () => {
   generateInitialGrid(map.getCenter().toArray(), CELL_SIZE);
 
+  // Add Free Satellite Source (Esri World Imagery)
+  map.addSource('satellite', {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    attribution: 'Tiles &copy; Esri'
+  });
+
+  map.addLayer({
+    id: 'satellite-layer',
+    type: 'raster',
+    source: 'satellite',
+    layout: { visibility: 'none' }
+  });
+
   map.addSource('grid', {
     type: 'geojson',
     data: cellsToGeoJSON()
   });
 
+  // Invisible fill layer to make clicking easier
   map.addLayer({
-    id: 'grid',
+    id: 'grid-fill',
+    type: 'fill',
+    source: 'grid',
+    paint: {
+      'fill-color': '#ff0000',
+      'fill-opacity': 0.3
+    },
+    filter: ['in', ['get', 'id'], ['literal', Array.from(selected)]]
+  });
+
+  map.addLayer({
+    id: 'grid-lines',
     type: 'line',
     source: 'grid',
     paint: {
-      'line-color': [
-        'case',
-        ['in', ['get', 'id'], ['literal', Array.from(selected)]],
-        '#ff0000',
-        '#000000'
-      ],
+      'line-color': '#000000',
       'line-width': 1
     }
   });
 
-  map.on('click', 'grid', e => {
+  // Click handler to toggle selection
+  map.on('click', 'grid-fill', (e) => {
     const id = e.features[0].properties.id;
-    selected.has(id) ? selected.delete(id) : selected.add(id);
-    map.getSource('grid').setData(cellsToGeoJSON());
+    if (selected.has(id)) {
+      selected.delete(id);
+    } else {
+      selected.add(id);
+    }
+    
+    // Update the visual selection filter
+    map.setFilter('grid-fill', ['in', ['get', 'id'], ['literal', Array.from(selected)]]);
   });
+
+  // Change cursor on hover
+  map.on('mouseenter', 'grid-fill', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'grid-fill', () => map.getCanvas().style.cursor = '');
 });
 
+// Toggle Satellite Layer
+document.getElementById('satellite-toggle').onchange = (e) => {
+  const visibility = e.target.checked ? 'visible' : 'none';
+  map.setLayoutProperty('satellite-layer', 'visibility', visibility);
+};
+
+// Subdivision Logic
 document.getElementById('subdivide').onclick = () => {
   const ratio = parseInt(document.getElementById('ratio').value);
   const newCells = [];
@@ -108,4 +148,5 @@ document.getElementById('subdivide').onclick = () => {
   cells = newCells;
   selected.clear();
   map.getSource('grid').setData(cellsToGeoJSON());
+  map.setFilter('grid-fill', ['in', ['get', 'id'], ['literal', []]]);
 };
