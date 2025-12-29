@@ -1,29 +1,21 @@
 const MAP_SOURCES = {
-    satellite_current: {
+    // Esri World Imagery (High-res Satellite)
+    satellite: {
         type: 'raster',
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        maxzoom: 20, // Allow high zoom
-        attribution: 'Esri 2025'
+        attribution: 'Tiles &copy; Esri'
     },
-    satellite_2014: {
-        type: 'raster',
-        tiles: ['https://wayback.arcgisonline.com/arcgis/rest/services/World_Imagery_2014_02_20/MapServer/tile/{z}/{y}/{x}'],
-        tileSize: 256,
-        maxzoom: 20,
-        attribution: 'Esri Wayback (2014)'
-    },
+    // OpenStreetMap Standard (Vector/Street)
     vector: {
         type: 'raster', 
         tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
         tileSize: 256,
-        maxzoom: 19,
-        attribution: 'OSM'
+        attribution: '&copy; OpenStreetMap'
     }
 };
 
 const INITIAL_STATE = {
-    center: [-9.135, 38.725],
-    zoom: 15,
-    maxZoom: 21 // The map engine itself must allow zooming past 18
+    center: [-9.135, 38.725], // Arroios, Lisbon
+    zoom: 13
 };
