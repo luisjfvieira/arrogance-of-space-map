@@ -1,9 +1,7 @@
 let gridData = { type: 'FeatureCollection', features: [] };
 let existingSquares = new Set();
 let activeLandUse = 'cars';
-
-// NEW: Mode state. 'pan', 'paint', or 'subdivide'
-let currentMode = 'pan'; 
+let currentMode = 'pan'; // Modes: 'pan', 'paint', 'subdivide'
 
 const PRECISION = 1000000;
 
@@ -40,16 +38,21 @@ function createSquare(lon, lat, lonStep, latStep, props = {}) {
 function generateGrid() {
     if (map.getZoom() < 12) return;
     const bounds = map.getBounds();
+    
+    // CONSTANT GRID FIX: 
+    // We anchor measurements to the world origin to stop "sliding" grids.
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    const lonStep = resMeters / (111320 * Math.cos(map.getCenter().lat * Math.PI / 180));
+    const lonStep = resMeters / (111320 * Math.cos(0)); // Fixed at Equator for global alignment
 
+    // SNAP: Anchor the start coordinates to a multiple of the step
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     let addedNew = false;
-    for (let x = startLon; x <= bounds.getEast() + lonStep; x += lonStep) {
-        for (let y = startLat; y <= bounds.getNorth() + latStep; y += latStep) {
+    // Buffer the loop slightly (2 extra steps) to ensure full screen coverage
+    for (let x = startLon; x <= bounds.getEast() + (lonStep * 2); x += lonStep) {
+        for (let y = startLat; y <= bounds.getNorth() + (latStep * 2); y += latStep) {
             const key = getCoordKey(x, y);
             if (!existingSquares.has(key)) {
                 existingSquares.add(key);
@@ -58,13 +61,23 @@ function generateGrid() {
             }
         }
     }
+
     if (addedNew && map.getSource('grid-source')) {
         map.getSource('grid-source').setData(gridData);
     }
 }
 
 map.on('load', () => {
-    // ... (Keep your MAP_SOURCES loading logic here)
+    // Add Base Maps
+    Object.keys(MAP_SOURCES).forEach(id => {
+        map.addSource(`src-${id}`, MAP_SOURCES[id]);
+        map.addLayer({
+            id: `layer-${id}`,
+            type: 'raster',
+            source: `src-${id}`,
+            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
+        });
+    });
     
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
@@ -73,7 +86,7 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': 'rgba(255, 255, 255, 0.4)',
+            'fill-outline-color': 'rgba(255, 255, 255, 0.3)',
             'fill-opacity': 0.6 
         }
     });
@@ -83,9 +96,8 @@ map.on('load', () => {
 
 map.on('moveend', generateGrid);
 
-// THE FIXED INTERACTION LOGIC
+// INTERACTION LOGIC
 map.on('click', 'grid-fill', (e) => {
-    // If we are in PAN mode, do nothing and let the map handle drag/pan
     if (currentMode === 'pan') return;
 
     const feature = e.features[0];
@@ -104,6 +116,7 @@ map.on('click', 'grid-fill', (e) => {
         const sizeLon = parentProps.sizeLon;
         const sizeLat = parentProps.sizeLat;
 
+        // REMOVE PARENT: Prevents transparency overlap darkening
         gridData.features.splice(targetIdx, 1);
         existingSquares.delete(getCoordKey(lon, lat));
 
@@ -129,21 +142,30 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// UI LOGIC FOR MODES
+// MODE SWITCHER
 function setMode(mode) {
     currentMode = mode;
-    
-    // Visual feedback: Update buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`btn-mode-${mode}`).classList.add('active');
 
-    // Change cursor: Crosshair for editing, Grab for panning
+    // Change cursor: Crosshair for editing, default for pan
     map.getCanvas().style.cursor = (mode === 'pan') ? '' : 'crosshair';
 }
 
-// Add these to your HTML/UI listeners
 document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
 document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
 document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
 
-// ... (Rest of opacity listeners)
+// UI UPDATES
+document.getElementById('opacity-slider').oninput = (e) => {
+    map.setPaintProperty('grid-fill', 'fill-opacity', parseFloat(e.target.value) / 100);
+    document.getElementById('opacity-val').innerText = e.target.value;
+};
+
+document.querySelectorAll('.legend-item').forEach(item => {
+    item.onclick = () => {
+        document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        activeLandUse = item.dataset.use;
+    };
+});
