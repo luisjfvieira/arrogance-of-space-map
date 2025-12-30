@@ -1,6 +1,8 @@
 let gridData = { type: 'FeatureCollection', features: [] };
 let activeLandUse = 'cars';
 let isSubdivideMode = false;
+
+// We use a Set to track existing coordinates for lightning-fast lookups
 const existingSquares = new Set();
 
 const map = new maplibregl.Map({
@@ -36,36 +38,23 @@ function generateGrid() {
     
     const bounds = map.getBounds();
     const resMeters = parseFloat(document.getElementById('res-slider').value);
-    
-    // 1. Calculate fixed steps based on the Equator/Prime Meridian anchor
     const latStep = resMeters / 111320;
     const lonStep = resMeters / (111320 * Math.cos(bounds.getCenter().lat * Math.PI / 180));
 
-    // 2. Buffer Logic: Get current width/height and multiply by 3 (5x total area)
-    const latSpan = bounds.getNorth() - bounds.getSouth();
-    const lonSpan = bounds.getEast() - bounds.getWest();
-    
-    const bufferSouth = bounds.getSouth() - latSpan;
-    const bufferNorth = bounds.getNorth() + latSpan;
-    const bufferWest = bounds.getWest() - lonSpan;
-    const bufferEast = bounds.getEast() + lonSpan;
-
-    // 3. IMPORTANT: Snap start coordinates to the Global Anchor (0,0)
-    // This ensures that no matter where you pan, the "start" of the grid calculation is the same.
-    const startLat = Math.floor(bufferSouth / latStep) * latStep;
-    const startLon = Math.floor(bufferWest / lonStep) * lonStep;
+    // Snap to global grid
+    const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
+    const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     const newFeatures = [];
-    // Limit generation to prevent browser crash (max 5000 squares per pan)
-    let count = 0;
-    for (let x = startLon; x < bufferEast && count < 5000; x += lonStep) {
-        for (let y = startLat; y < bufferNorth; y += latStep) {
+    for (let x = startLon; x < bounds.getEast(); x += lonStep) {
+        for (let y = startLat; y < bounds.getNorth(); y += latStep) {
+            
+            // Generate a unique key for this coordinate (rounded to 7 decimals to avoid float errors)
             const key = `${x.toFixed(7)}|${y.toFixed(7)}`;
             
             if (!existingSquares.has(key)) {
                 existingSquares.add(key);
                 newFeatures.push(createSquare(x, y, lonStep, latStep));
-                count++;
             }
         }
     }
@@ -79,7 +68,7 @@ function generateGrid() {
 }
 
 map.on('load', () => {
-    // Add Base Maps
+    // Add Basemaps
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
@@ -117,13 +106,13 @@ map.on('load', () => {
             const sizeLon = feature.properties.sizeLon;
             const sizeLat = feature.properties.sizeLat;
 
-            // Remove parent
+            // Remove parent from memory
             gridData.features = gridData.features.filter(f => 
-                !(Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.0000001 && 
-                  Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.0000001)
+                !(f.geometry.coordinates[0][0][0] === lon && f.geometry.coordinates[0][0][1] === lat)
             );
             existingSquares.delete(`${lon.toFixed(7)}|${lat.toFixed(7)}`);
 
+            // Add 16 children
             const div = 4;
             const cLon = sizeLon / div;
             const cLat = sizeLat / div;
@@ -136,6 +125,7 @@ map.on('load', () => {
                 }
             }
         } else {
+            // Paint: find the existing feature in data and update it
             const feat = gridData.features.find(f => 
                 Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.0000001 &&
                 Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.0000001
@@ -148,7 +138,7 @@ map.on('load', () => {
         map.getSource('grid-source').setData(gridData);
     });
 
-    // UI Updates
+    // UI Logic (Opacity and Mode toggles)
     document.getElementById('opacity-slider').oninput = (e) => {
         const val = parseFloat(e.target.value) / 100;
         map.setPaintProperty('grid-fill', 'fill-opacity', val);
