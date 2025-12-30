@@ -9,12 +9,43 @@ const map = new maplibregl.Map({
         layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#f0f0f0' }}]
     },
     center: INITIAL_STATE.center,
-    zoom: INITIAL_STATE.zoom,
+    zoom: 13,
     maxZoom: INITIAL_STATE.maxZoom
 });
 
+// Logic to generate the grid
+function generateGrid(bounds, resMeters) {
+    const sw = bounds.getSouthWest ? bounds.getSouthWest() : { lng: bounds[0], lat: bounds[1] };
+    const ne = bounds.getNorthEast ? bounds.getNorthEast() : { lng: bounds[2], lat: bounds[3] };
+
+    const latStep = resMeters / 111320;
+    const lonStep = resMeters / (111320 * Math.cos(sw.lat * Math.PI / 180));
+
+    const startLat = Math.floor(sw.lat / latStep) * latStep;
+    const startLon = Math.floor(sw.lng / lonStep) * lonStep;
+
+    for (let x = startLon; x < ne.lng; x += lonStep) {
+        for (let y = startLat; y < ne.lat; y += latStep) {
+            gridData.features.push({
+                type: 'Feature',
+                properties: { 
+                    landUse: 'unassigned', 
+                    color: LAND_USE_COLORS['unassigned'] 
+                },
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [[[x, y], [x + lonStep, y], [x + lonStep, y + latStep], [x, y + latStep], [x, y]]]
+                }
+            });
+        }
+    }
+    if (map.getSource('grid-source')) {
+        map.getSource('grid-source').setData(gridData);
+    }
+}
+
 map.on('load', () => {
-    // 1. Base Layers
+    // 1. Setup Base Layers
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
@@ -25,7 +56,7 @@ map.on('load', () => {
         });
     });
 
-    // 2. GRID LAYER (Added after base layers so it's on top)
+    // 2. Setup Grid Source and Layer
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
         id: 'grid-fill',
@@ -34,11 +65,16 @@ map.on('load', () => {
         paint: {
             'fill-color': ['get', 'color'],
             'fill-outline-color': '#ffffff',
-            'fill-opacity': 0.5 // INITIAL OPACITY
+            'fill-opacity': 0.5
         }
     });
 
-    // 3. UI Controls
+    // 3. Create INITIAL 200m GRID around Lisbon
+    const center = INITIAL_STATE.center;
+    const offset = 0.02; // Roughly 2km area
+    generateGrid([center[0]-offset, center[1]-offset, center[0]+offset, center[1]+offset], 200);
+
+    // 4. UI Handlers
     const layerSelector = document.getElementById('layer-selector');
     const satProvider = document.getElementById('sat-provider-selector');
     const satGroup = document.getElementById('sat-options-group');
@@ -53,37 +89,19 @@ map.on('load', () => {
         map.setLayoutProperty('layer-satellite_esri', 'visibility', (isSat && satProvider.value === 'satellite_esri') ? 'visible' : 'none');
     });
 
-    // OPACITY LOGIC
     opacitySlider.addEventListener('input', (e) => {
         const opacity = e.target.value / 100;
         opacityVal.innerText = e.target.value;
         map.setPaintProperty('grid-fill', 'fill-opacity', opacity);
     });
 
-    // 4. Grid Generation (Shift + Drag)
+    // Manual Draw (Shift + Drag)
     map.on('boxzoomend', (e) => {
         const resMeters = parseFloat(document.getElementById('res-slider').value);
-        const bounds = e.boxZoomBounds;
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-        const latStep = resMeters / 111320;
-        const lonStep = resMeters / (111320 * Math.cos(sw.lat * Math.PI / 180));
-        const startLat = Math.floor(sw.lat / latStep) * latStep;
-        const startLon = Math.floor(sw.lng / lonStep) * lonStep;
-
-        for (let x = startLon; x < ne.lng; x += lonStep) {
-            for (let y = startLat; y < ne.lat; y += latStep) {
-                gridData.features.push({
-                    type: 'Feature',
-                    properties: { landUse: 'unassigned', color: LAND_USE_COLORS['unassigned'] },
-                    geometry: { type: 'Polygon', coordinates: [[[x, y], [x + lonStep, y], [x + lonStep, y + latStep], [x, y + latStep], [x, y]]] }
-                });
-            }
-        }
-        map.getSource('grid-source').setData(gridData);
+        generateGrid(e.boxZoomBounds, resMeters);
     });
 
-    // 5. Paint Logic
+    // Painting Logic
     map.on('click', 'grid-fill', (e) => {
         const coords = e.features[0].geometry.coordinates[0][0];
         const feature = gridData.features.find(f => 
@@ -97,7 +115,7 @@ map.on('load', () => {
         }
     });
 
-    // Legend Clicks
+    // Legend Click
     document.querySelectorAll('.legend-item').forEach(item => {
         item.onclick = () => {
             document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
@@ -106,11 +124,8 @@ map.on('load', () => {
         };
     });
 
-    // Clear Analysis
     document.getElementById('btn-clear').onclick = () => {
         gridData.features = [];
         map.getSource('grid-source').setData(gridData);
     };
-
-    map.on('zoom', () => { document.getElementById('zoom-val').innerText = map.getZoom().toFixed(1); });
 });
