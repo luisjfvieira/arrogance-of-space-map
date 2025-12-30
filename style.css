@@ -131,3 +131,11 @@ select {
 .cursor-crosshair .maplibregl-canvas {
     cursor: crosshair !important;
 }
+
+/* The selection box style */
+.box-draw {
+    background: rgba(52, 152, 219, 0.2);
+    border: 2px solid #3498db;
+    position: absolute;
+    pointer-events: none;
+}
