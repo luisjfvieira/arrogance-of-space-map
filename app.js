@@ -4,13 +4,7 @@ const map = new maplibregl.Map({
     style: {
         version: 8,
         sources: {},
-        layers: [
-            {
-                id: 'background',
-                type: 'background',
-                paint: { 'background-color': '#e5e5e5' } // If you see grey, the engine is working!
-            }
-        ]
+        layers: [ ]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom,
