@@ -2,15 +2,15 @@ let gridData = { type: 'FeatureCollection', features: [] };
 let activeLandUse = 'cars';
 let isSubdivideMode = false;
 
-// 1. Initialize Map with a strict order
+// We use a Set to track existing coordinates for lightning-fast lookups
+const existingSquares = new Set();
+
 const map = new maplibregl.Map({
     container: 'map',
     style: {
         version: 8,
         sources: {},
-        layers: [
-            { id: 'background', type: 'background', paint: { 'background-color': '#222222' } }
-        ]
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#222222' } }]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom
@@ -35,46 +35,51 @@ function createSquare(lon, lat, lonStep, latStep, props = {}) {
 
 function generateGrid() {
     if (map.getZoom() < 12) return;
+    
     const bounds = map.getBounds();
     const resMeters = parseFloat(document.getElementById('res-slider').value);
     const latStep = resMeters / 111320;
     const lonStep = resMeters / (111320 * Math.cos(bounds.getCenter().lat * Math.PI / 180));
 
+    // Snap to global grid
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     const newFeatures = [];
     for (let x = startLon; x < bounds.getEast(); x += lonStep) {
         for (let y = startLat; y < bounds.getNorth(); y += latStep) {
-            const exists = gridData.features.some(f => 
-                Math.abs(f.geometry.coordinates[0][0][0] - x) < 0.0000001 &&
-                Math.abs(f.geometry.coordinates[0][0][1] - y) < 0.0000001
-            );
-            if (!exists) {
+            
+            // Generate a unique key for this coordinate (rounded to 7 decimals to avoid float errors)
+            const key = `${x.toFixed(7)}|${y.toFixed(7)}`;
+            
+            if (!existingSquares.has(key)) {
+                existingSquares.add(key);
                 newFeatures.push(createSquare(x, y, lonStep, latStep));
             }
         }
     }
+
     if (newFeatures.length > 0) {
         gridData.features = [...gridData.features, ...newFeatures];
-        if (map.getSource('grid-source')) map.getSource('grid-source').setData(gridData);
+        if (map.getSource('grid-source')) {
+            map.getSource('grid-source').setData(gridData);
+        }
     }
 }
 
 map.on('load', () => {
-    // 2. ADD BASEMAP SOURCES & LAYERS FIRST
+    // Add Basemaps
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
             id: `layer-${id}`,
             type: 'raster',
             source: `src-${id}`,
-            layout: { visibility: id === 'vector' ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 1 }
+            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
         });
     });
 
-    // 3. ADD GRID SOURCE & LAYER ON TOP
+    // Add Grid Layer
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
         id: 'grid-fill',
@@ -83,36 +88,47 @@ map.on('load', () => {
         paint: {
             'fill-color': ['get', 'color'],
             'fill-outline-color': '#ffffff',
-            'fill-opacity': 0.5 // Controlled by slider
+            'fill-opacity': 0.5
         }
     });
 
     generateGrid();
     map.on('moveend', generateGrid);
 
-    // CLICK LOGIC
+    // CLICK HANDLER
     map.on('click', 'grid-fill', (e) => {
         const feature = e.features[0];
         const coords = feature.geometry.coordinates[0][0];
-        const sizeLon = feature.properties.sizeLon;
-        const sizeLat = feature.properties.sizeLat;
+        const lon = coords[0];
+        const lat = coords[1];
 
         if (isSubdivideMode) {
+            const sizeLon = feature.properties.sizeLon;
+            const sizeLat = feature.properties.sizeLat;
+
+            // Remove parent from memory
             gridData.features = gridData.features.filter(f => 
-                !(Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 && 
-                  Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001)
+                !(f.geometry.coordinates[0][0][0] === lon && f.geometry.coordinates[0][0][1] === lat)
             );
+            existingSquares.delete(`${lon.toFixed(7)}|${lat.toFixed(7)}`);
+
+            // Add 16 children
             const div = 4;
-            const cLon = sizeLon / div; const cLat = sizeLat / div;
+            const cLon = sizeLon / div;
+            const cLat = sizeLat / div;
             for (let i = 0; i < div; i++) {
                 for (let j = 0; j < div; j++) {
-                    gridData.features.push(createSquare(coords[0] + (i * cLon), coords[1] + (j * cLat), cLon, cLat));
+                    const nx = lon + (i * cLon);
+                    const ny = lat + (j * cLat);
+                    existingSquares.add(`${nx.toFixed(7)}|${ny.toFixed(7)}`);
+                    gridData.features.push(createSquare(nx, ny, cLon, cLat));
                 }
             }
         } else {
+            // Paint: find the existing feature in data and update it
             const feat = gridData.features.find(f => 
-                Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 &&
-                Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001
+                Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.0000001 &&
+                Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.0000001
             );
             if (feat) {
                 feat.properties.landUse = activeLandUse;
@@ -122,7 +138,13 @@ map.on('load', () => {
         map.getSource('grid-source').setData(gridData);
     });
 
-    // UI CONTROL LISTENERS
+    // UI Logic (Opacity and Mode toggles)
+    document.getElementById('opacity-slider').oninput = (e) => {
+        const val = parseFloat(e.target.value) / 100;
+        map.setPaintProperty('grid-fill', 'fill-opacity', val);
+        document.getElementById('opacity-val').innerText = e.target.value;
+    };
+
     document.getElementById('btn-subdivide').onclick = (e) => {
         isSubdivideMode = !isSubdivideMode;
         e.target.innerText = isSubdivideMode ? "MODE: SUBDIVIDING" : "MODE: PAINTING";
@@ -137,21 +159,20 @@ map.on('load', () => {
         };
     });
 
-    // FIX TRANSPARENCY BUG: Correctly targeting the 'grid-fill' layer
-    document.getElementById('opacity-slider').oninput = (e) => {
-        const val = parseFloat(e.target.value) / 100;
-        map.setPaintProperty('grid-fill', 'fill-opacity', val);
-        document.getElementById('opacity-val').innerText = e.target.value;
-    };
-
-    // FIX BASEMAP TOGGLE BUG
-    function updateBasemap() {
+    const updateBase = () => {
         const isBaseOn = document.getElementById('toggle-basemap').checked;
-        const selected = document.getElementById('layer-selector').value;
-        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && selected === 'vector') ? 'visible' : 'none');
-        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && selected === 'satellite') ? 'visible' : 'none');
-    }
+        const mode = document.getElementById('layer-selector').value;
+        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && mode === 'vector') ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && mode === 'satellite') ? 'visible' : 'none');
+    };
+    document.getElementById('toggle-basemap').onchange = updateBase;
+    document.getElementById('layer-selector').onchange = updateBase;
 
-    document.getElementById('toggle-basemap').onchange = updateBasemap;
-    document.getElementById('layer-selector').onchange = updateBasemap;
+    document.getElementById('btn-clear').onclick = () => {
+        if(confirm("Clear all?")) {
+            gridData.features = [];
+            existingSquares.clear();
+            generateGrid();
+        }
+    };
 });
