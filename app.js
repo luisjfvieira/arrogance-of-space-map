@@ -1,51 +1,69 @@
-// Initialize the map
+// 1. Configuration (Moved inside to ensure it's always available)
+const CONFIG = {
+    center: [-9.135, 38.725], // Lisbon
+    zoom: 15,
+    maxZoom: 22
+};
+
+const SOURCES = {
+    vector: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    satellite_google: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    satellite_esri: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    satellite_2014: 'https://wayback.arcgisonline.com/arcgis/rest/services/World_Imagery_2014_02_20/MapServer/tile/{z}/{y}/{x}'
+};
+
+// 2. Initialize Map
 const map = new maplibregl.Map({
     container: 'map',
     style: {
         version: 8,
         sources: {},
-        layers: [ ]
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#333' }}]
     },
-    center: INITIAL_STATE.center,
-    zoom: INITIAL_STATE.zoom,
-    maxZoom: INITIAL_STATE.maxZoom
+    center: CONFIG.center,
+    zoom: CONFIG.zoom,
+    maxZoom: CONFIG.maxZoom
 });
 
 map.on('load', () => {
-    // 1. Add Sources
-    Object.keys(MAP_SOURCES).forEach(key => {
-        map.addSource(`src-${key}`, MAP_SOURCES[key]);
+    console.log("Map Engine Loaded");
+
+    // Add all sources
+    Object.keys(SOURCES).forEach(id => {
+        map.addSource(`src-${id}`, {
+            type: 'raster',
+            tiles: [SOURCES[id]],
+            tileSize: 256,
+            maxzoom: 22
+        });
     });
 
-    // 2. Add Layers
+    // Add all layers (Vector visible by default)
     map.addLayer({ id: 'layer-vector', type: 'raster', source: 'src-vector', layout: { visibility: 'visible' }});
-    map.addLayer({ id: 'layer-satellite_esri', type: 'raster', source: 'src-satellite_esri', layout: { visibility: 'none' }});
     map.addLayer({ id: 'layer-satellite_google', type: 'raster', source: 'src-satellite_google', layout: { visibility: 'none' }});
+    map.addLayer({ id: 'layer-satellite_esri', type: 'raster', source: 'src-satellite_esri', layout: { visibility: 'none' }});
     map.addLayer({ id: 'layer-satellite_2014', type: 'raster', source: 'src-satellite_2014', layout: { visibility: 'none' }});
 
-    // 3. Logic for selectors
-    const layerSelector = document.getElementById('layer-selector');
-    const satProviderSelector = document.getElementById('sat-provider-selector');
+    // 3. Logic for UI selectors
+    const layerSel = document.getElementById('layer-selector');
+    const satSel = document.getElementById('sat-provider-selector');
     const satGroup = document.getElementById('sat-options-group');
 
-    function updateMap() {
-        const isSat = layerSelector.value === 'satellite';
-        const activeSat = `layer-${satProviderSelector.value}`;
+    function sync() {
+        const isSat = layerSel.value === 'satellite';
+        const activeSatId = `layer-${satSel.value}`;
 
         satGroup.style.display = isSat ? 'block' : 'none';
 
-        // Set visibility for all layers
-        ['layer-vector', 'layer-satellite_esri', 'layer-satellite_google', 'layer-satellite_2014'].forEach(id => {
-            let visibility = 'none';
-            if (!isSat && id === 'layer-vector') visibility = 'visible';
-            if (isSat && id === activeSat) visibility = 'visible';
-            
-            map.setLayoutProperty(id, 'visibility', visibility);
-        });
+        // Toggle visibility
+        map.setLayoutProperty('layer-vector', 'visibility', !isSat ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite_google', 'visibility', (isSat && activeSatId === 'layer-satellite_google') ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite_esri', 'visibility', (isSat && activeSatId === 'layer-satellite_esri') ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite_2014', 'visibility', (isSat && activeSatId === 'layer-satellite_2014') ? 'visible' : 'none');
     }
 
-    layerSelector.addEventListener('change', updateMap);
-    satProviderSelector.addEventListener('change', updateMap);
+    layerSel.addEventListener('change', sync);
+    satSel.addEventListener('change', sync);
 
     map.on('zoom', () => {
         document.getElementById('zoom-val').innerText = map.getZoom().toFixed(1);
