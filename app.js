@@ -1,31 +1,33 @@
+// 1. GLOBAL STATE & CONFIG
 let gridData = { type: 'FeatureCollection', features: [] };
 let existingSquares = new Set();
 let activeLandUse = 'cars';
-let currentMode = 'pan'; // Modes: 'pan', 'paint', 'subdivide'
-
+let currentMode = 'pan'; 
 const PRECISION = 1000000;
 
+// Variables for the selection box (Window tool)
+let startPoint, currentPoint, boxElement;
 
-
-
+// 2. INITIALIZE MAP
 const map = new maplibregl.Map({
     container: 'map',
     style: {
         version: 8,
         sources: {},
-        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#ffffff' } }]
+        layers: [{ 
+            id: 'background', 
+            type: 'background', 
+            paint: { 'background-color': '#ffffff' } 
+        }]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom
 });
 
-// Variable to track the selection box
-let startPoint, currentPoint, boxElement;
-
-// Disable default box zoom to use Shift+Drag for painting
+// Now that 'map' is defined, we can disable box zoom
 map.boxZoom.disable();
 
-// Helper for coordinates
+// 3. CORE FUNCTIONS
 const getCoordKey = (lon, lat) => `${Math.round(lon * PRECISION)}|${Math.round(lat * PRECISION)}`;
 
 function createSquare(lon, lat, lonStep, latStep, props = {}) {
@@ -47,19 +49,14 @@ function createSquare(lon, lat, lonStep, latStep, props = {}) {
 function generateGrid() {
     if (map.getZoom() < 12) return;
     const bounds = map.getBounds();
-    
-    // CONSTANT GRID FIX: 
-    // We anchor measurements to the world origin to stop "sliding" grids.
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    const lonStep = resMeters / (111320 * Math.cos(0)); // Fixed at Equator for global alignment
+    const lonStep = resMeters / (111320 * Math.cos(0)); 
 
-    // SNAP: Anchor the start coordinates to a multiple of the step
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     let addedNew = false;
-    // Buffer the loop slightly (2 extra steps) to ensure full screen coverage
     for (let x = startLon; x <= bounds.getEast() + (lonStep * 2); x += lonStep) {
         for (let y = startLat; y <= bounds.getNorth() + (latStep * 2); y += latStep) {
             const key = getCoordKey(x, y);
@@ -76,18 +73,15 @@ function generateGrid() {
     }
 }
 
+// 4. MAP EVENTS
 map.on('load', () => {
-    // 1. Add both sources and layers
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
-            id: `layer-${id}`, // This creates 'layer-vector' and 'layer-satellite'
+            id: `layer-${id}`,
             type: 'raster',
             source: `src-${id}`,
-            layout: { 
-                // Only show vector (OSM) on start, hide satellite
-                visibility: id === 'vector' ? 'visible' : 'none' 
-            }
+            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
         });
     });
     
@@ -108,7 +102,7 @@ map.on('load', () => {
 
 map.on('moveend', generateGrid);
 
-// INTERACTION LOGIC
+// 5. INTERACTION: CLICK (Paint/Subdivide)
 map.on('click', 'grid-fill', (e) => {
     if (currentMode === 'pan') return;
 
@@ -128,7 +122,6 @@ map.on('click', 'grid-fill', (e) => {
         const sizeLon = parentProps.sizeLon;
         const sizeLat = parentProps.sizeLat;
 
-        // REMOVE PARENT: Prevents transparency overlap darkening
         gridData.features.splice(targetIdx, 1);
         existingSquares.delete(getCoordKey(lon, lat));
 
@@ -154,19 +147,10 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// Variable to track the selection box
-let startPoint, currentPoint, boxElement;
-
-// Disable default box zoom to use Shift+Drag for painting
-map.boxZoom.disable();
-
+// 6. INTERACTION: WINDOW TOOL (Shift + Drag)
 map.on('mousedown', (e) => {
-    // Only trigger if in PAINT mode and Shift key is held
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
-
-    // Prevent map panning while drawing the box
     map.dragPan.disable();
-
     startPoint = e.point;
     boxElement = document.createElement('div');
     boxElement.classList.add('box-draw');
@@ -175,9 +159,7 @@ map.on('mousedown', (e) => {
 
 map.on('mousemove', (e) => {
     if (!boxElement) return;
-
     currentPoint = e.point;
-
     const minX = Math.min(startPoint.x, currentPoint.x);
     const maxX = Math.max(startPoint.x, currentPoint.x);
     const minY = Math.min(startPoint.y, currentPoint.y);
@@ -192,49 +174,38 @@ map.on('mousemove', (e) => {
 map.on('mouseup', (e) => {
     if (!boxElement) return;
 
-    // Capture the bounding box in screen coordinates
     const bbox = [
         [Math.min(startPoint.x, e.point.x), Math.min(startPoint.y, e.point.y)],
         [Math.max(startPoint.x, e.point.x), Math.max(startPoint.y, e.point.y)]
     ];
 
-    // Find all features from 'grid-fill' that fall inside this box
     const selectedFeatures = map.queryRenderedFeatures(bbox, { layers: ['grid-fill'] });
 
     if (selectedFeatures.length > 0) {
         selectedFeatures.forEach(feature => {
             const coords = feature.geometry.coordinates[0][0];
-            const lon = coords[0];
-            const lat = coords[1];
-            
-            // Find the square in our main data object
             const targetIdx = gridData.features.findIndex(f => 
-                getCoordKey(f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]) === getCoordKey(lon, lat)
+                getCoordKey(f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]) === getCoordKey(coords[0], coords[1])
             );
-
             if (targetIdx !== -1) {
                 gridData.features[targetIdx].properties.landUse = activeLandUse;
                 gridData.features[targetIdx].properties.color = LAND_USE_COLORS[activeLandUse];
             }
         });
-
-        // Update the map source once
         map.getSource('grid-source').setData(gridData);
     }
 
-    // Cleanup
     boxElement.remove();
     boxElement = null;
     map.dragPan.enable();
 });
 
-// MODE SWITCHER
+// 7. UI LOGIC & LISTENERS
 function setMode(mode) {
     currentMode = mode;
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    document.getElementById(`btn-mode-${mode}`).classList.add('active');
-
-    // Change cursor: Crosshair for editing, default for pan
+    const targetBtn = document.getElementById(`btn-mode-${mode}`);
+    if (targetBtn) targetBtn.classList.add('active');
     map.getCanvas().style.cursor = (mode === 'pan') ? '' : 'crosshair';
 }
 
@@ -242,7 +213,6 @@ document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
 document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
 document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
 
-// UI UPDATES
 document.getElementById('opacity-slider').oninput = (e) => {
     map.setPaintProperty('grid-fill', 'fill-opacity', parseFloat(e.target.value) / 100);
     document.getElementById('opacity-val').innerText = e.target.value;
@@ -256,26 +226,17 @@ document.querySelectorAll('.legend-item').forEach(item => {
     };
 });
 
-// Function to sync the map with the UI settings
 const updateBase = () => {
     const isBaseOn = document.getElementById('toggle-basemap').checked;
     const selectedMode = document.getElementById('layer-selector').value;
 
-    // Toggle Vector Layer (OSM)
-    map.setLayoutProperty(
-        'layer-vector', 
-        'visibility', 
-        (isBaseOn && selectedMode === 'vector') ? 'visible' : 'none'
-    );
-
-    // Toggle Satellite Layer (Google)
-    map.setLayoutProperty(
-        'layer-satellite', 
-        'visibility', 
-        (isBaseOn && selectedMode === 'satellite') ? 'visible' : 'none'
-    );
+    if (map.getLayer('layer-vector')) {
+        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && selectedMode === 'vector') ? 'visible' : 'none');
+    }
+    if (map.getLayer('layer-satellite')) {
+        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && selectedMode === 'satellite') ? 'visible' : 'none');
+    }
 };
 
-// Attach listeners to the HTML elements
 document.getElementById('toggle-basemap').onchange = updateBase;
 document.getElementById('layer-selector').onchange = updateBase;
