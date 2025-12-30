@@ -29,14 +29,14 @@
 
         <div class="control-group">
             <label>Tool Mode</label>
-            <div style="display: flex; gap: 5px;">
+            <div class="mode-container">
                 <button id="btn-mode-pan" class="mode-btn active">Explore</button>
                 <button id="btn-mode-paint" class="mode-btn">Paint</button>
                 <button id="btn-mode-subdivide" class="mode-btn">Split</button>
             </div>
         </div>
         
-        <p style="font-size:10px; color:#666;">Click to paint. Toggle to split.</p>
+        <p id="mode-instruction" style="font-size:10px; color:#666; min-height: 24px;">Pan enabled. Use scroll to zoom.</p>
 
         <div class="control-group">
             <div id="legend">
@@ -49,8 +49,6 @@
                 <div class="legend-item" data-use="dead space"><span style="background:#808080"></span> Dead</div>
             </div>
         </div>
-        
-        <input type="range" id="res-slider" min="50" max="1000" step="50" value="200" style="display:none;">
     </div>
     <script src="map-config.js"></script>
     <script src="app.js"></script>
