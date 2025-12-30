@@ -3,34 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Grid Explorer</title>
+    <title>Global Grid Explorer | High-Res Satellite</title>
+    
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="map"></div>
 
     <div id="ui-panel">
-        <h2>Map Controls</h2>
+        <h2 style="margin-top: 0; font-size: 18px;">Map Explorer</h2>
         
         <div class="control-group">
-            <label>Base Map View:</label>
+            <label for="layer-selector">Base View:</label>
             <select id="layer-selector">
-                <option value="vector">Vector (Street Map)</option>
+                <option value="vector">Street Map (Vector)</option>
                 <option value="satellite">Satellite Imagery</option>
             </select>
         </div>
 
-        <div class="control-group" id="time-selector-group" style="display: none;">
-            <label>Time Period:</label>
-            <select id="time-selector">
-                <option value="src-satellite-now">Current (2024/25)</option>
-                <option value="src-satellite-2014">February 2014</option>
+        <div class="control-group" id="sat-options-group" style="display: none;">
+            <label for="sat-provider-selector">Provider / Time Period:</label>
+            <select id="sat-provider-selector">
+                <option value="layer-sat-google">Google (High-Res 2025)</option>
+                <option value="layer-sat-esri">Esri World Imagery</option>
+                <option value="layer-sat-2014">Esri Wayback (Feb 2014)</option>
             </select>
         </div>
 
-        <div id="status">Zoom Level: <span id="zoom-val">13.0</span></div>
+        <hr>
+
+        <div class="control-group">
+            <label>Overlay Layers:</label>
+            <div style="font-size: 13px; margin-top: 5px;">
+                <input type="checkbox" id="grid-toggle" checked> <span id="grid-label">Interactive Grid</span>
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="status">
+            <div><strong>Location:</strong> Arroios, Lisbon</div>
+            <div style="margin-top: 4px;"><strong>Zoom Level:</strong> <span id="zoom-val">15.0</span></div>
+        </div>
     </div>
 
     <script src="map-config.js"></script>
