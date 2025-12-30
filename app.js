@@ -5,7 +5,6 @@ let activeLandUse = 'cars';
 let currentMode = 'pan'; 
 const PRECISION = 1000000;
 
-// Variables for the selection box (Window tool)
 let startPoint, currentPoint, boxElement;
 
 // 2. INITIALIZE MAP
@@ -24,11 +23,9 @@ const map = new maplibregl.Map({
     zoom: INITIAL_STATE.zoom
 });
 
-// Disable default box zoom so we can use Shift+Drag for painting
 map.boxZoom.disable();
 
 // 3. CORE FUNCTIONS
-// Helper for consistent coordinate keys
 const getCoordKey = (lon, lat) => `${Math.round(lon * PRECISION)}|${Math.round(lat * PRECISION)}`;
 
 function createSquare(lon, lat, lonStep, latStep, props = {}) {
@@ -51,10 +48,10 @@ function generateGrid() {
     if (map.getZoom() < 12) return;
     const bounds = map.getBounds();
     
-    // FIXED GRID CALCULATION
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    const lonStep = resMeters / (111320 * Math.cos(0)); // Fixed at Equator
+    // Account for Lisbon latitude (approx 38.7) for square aspect ratio
+    const lonStep = resMeters / (111320 * Math.cos(38.7 * Math.PI / 180));
 
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
@@ -78,7 +75,6 @@ function generateGrid() {
 
 // 4. MAP LOADING
 map.on('load', () => {
-    // Add Basemaps
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
@@ -89,7 +85,6 @@ map.on('load', () => {
         });
     });
     
-    // Add Grid Source and Layer
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
         id: 'grid-fill',
@@ -97,7 +92,7 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': 'rgba(0, 0, 139, 0.6)', // Your Dark Blue
+            'fill-outline-color': 'rgba(0, 0, 139, 0.6)',
             'fill-opacity': 0.6 
         }
     });
@@ -107,7 +102,7 @@ map.on('load', () => {
 
 map.on('moveend', generateGrid);
 
-// 5. CLICK INTERACTION (Single Cell Paint/Split)
+// 5. CLICK INTERACTION
 map.on('click', 'grid-fill', (e) => {
     if (currentMode === 'pan') return;
 
@@ -151,10 +146,10 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL (Shift + Drag Selection)
+// 6. WINDOW TOOL
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
-    map.dragPan.disable();
+    
     startPoint = e.point;
     boxElement = document.createElement('div');
     boxElement.classList.add('box-draw');
@@ -207,16 +202,30 @@ map.on('mouseup', (e) => {
 
     boxElement.remove();
     boxElement = null;
-    map.dragPan.enable();
 });
 
 // 7. UI LOGIC & CONTROLS
 function setMode(mode) {
     currentMode = mode;
+    
+    // Update Buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     const targetBtn = document.getElementById(`btn-mode-${mode}`);
     if (targetBtn) targetBtn.classList.add('active');
-    map.getCanvas().style.cursor = (mode === 'pan') ? '' : 'crosshair';
+
+    // Handle Pan/Zoom Logic
+    const instruction = document.getElementById('mode-instruction');
+    if (mode === 'pan') {
+        map.dragPan.enable();
+        map.getCanvas().style.cursor = '';
+        instruction.innerText = "Pan enabled. Use scroll to zoom.";
+    } else {
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'crosshair';
+        instruction.innerText = (mode === 'paint') 
+            ? "Pan locked. Zoom to move. Click or Shift+Drag to paint." 
+            : "Pan locked. Zoom to move. Click a square to split.";
+    }
 }
 
 document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
@@ -240,12 +249,11 @@ const updateBase = () => {
     const isBaseOn = document.getElementById('toggle-basemap').checked;
     const selectedMode = document.getElementById('layer-selector').value;
 
-    if (map.getLayer('layer-vector')) {
-        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && selectedMode === 'vector') ? 'visible' : 'none');
-    }
-    if (map.getLayer('layer-satellite')) {
-        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && selectedMode === 'satellite') ? 'visible' : 'none');
-    }
+    ['vector', 'satellite'].forEach(id => {
+        if (map.getLayer(`layer-${id}`)) {
+            map.setLayoutProperty(`layer-${id}`, 'visibility', (isBaseOn && selectedMode === id) ? 'visible' : 'none');
+        }
+    });
 };
 
 document.getElementById('toggle-basemap').onchange = updateBase;
