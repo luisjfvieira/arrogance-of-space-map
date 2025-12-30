@@ -20,7 +20,7 @@ const MAP_SOURCES = {
 };
 
 const LAND_USE_COLORS = {
-    'unassigned': 'rgba(150, 150, 150, 0.5)',
+    'unassigned': '#555555', // Solid Dark Grey
     'cars': '#e74c3c',
     'pedestrians': '#2ecc71',
     'cycling': '#3498db',
