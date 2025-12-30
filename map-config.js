@@ -1,20 +1,30 @@
 const MAP_SOURCES = {
-    vector: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256 },
-    satellite: { type: 'raster', tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'], tileSize: 256 }
+    vector: { 
+        type: 'raster', 
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], 
+        tileSize: 256,
+        attribution: '&copy; OpenStreetMap'
+    },
+    satellite: { 
+        type: 'raster', 
+        tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'], 
+        tileSize: 256,
+        attribution: '&copy; Google'
+    }
 };
 
 const LAND_USE_COLORS = {
-    'unassigned': '#666666',
-    'cars': '#ff0000',           // Red
-    'pedestrians': '#0000ff',    // Blue
-    'cyclists': '#800080',       // Purple
-    'public transit': '#ffa500', // Orange
-    'buildings': '#ffff00',      // Yellow
-    'green': '#008000',          // Green
-    'dead space': '#808080'      // Grey
+    'unassigned': 'rgba(102, 102, 102, 0.2)', // Semi-transparent grey
+    'cars': '#ff0000',
+    'pedestrians': '#0000ff',
+    'cyclists': '#800080',
+    'public transit': '#ffa500',
+    'buildings': '#ffff00',
+    'green': '#008000',
+    'dead space': '#808080'
 };
 
 const INITIAL_STATE = {
-    center: [-9.139, 38.722],
+    center: [-9.139, 38.722], // Lisbon
     zoom: 14
 };
