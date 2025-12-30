@@ -27,7 +27,15 @@
             <input type="range" id="opacity-slider" min="0" max="100" value="50">
         </div>
 
-        <button id="btn-subdivide" class="primary-btn">MODE: PAINTING</button>
+        <div class="control-group">
+            <label>Tool Mode</label>
+            <div style="display: flex; gap: 5px;">
+                <button id="btn-mode-pan" class="mode-btn active">Explore</button>
+                <button id="btn-mode-paint" class="mode-btn">Paint</button>
+                <button id="btn-mode-subdivide" class="mode-btn">Split</button>
+            </div>
+        </div>
+        
         <p style="font-size:10px; color:#666;">Click to paint. Toggle to split.</p>
 
         <div class="control-group">
