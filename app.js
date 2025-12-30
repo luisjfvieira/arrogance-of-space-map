@@ -10,9 +10,7 @@ const map = new maplibregl.Map({
     style: {
         version: 8,
         sources: {},
-        layers: [
-            { id: 'background', type: 'background', paint: { 'background-color': '#1a1a1a' } }
-        ]
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#1a1a1a' } }]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom
@@ -36,25 +34,34 @@ function createSquare(lon, lat, lonStep, latStep, props = {}) {
 }
 
 function generateGrid() {
-    // CRITICAL: Grid only generates at Zoom 12 or higher
     if (map.getZoom() < 12) return;
 
     const bounds = map.getBounds();
-    const resSlider = document.getElementById('res-slider');
-    const resMeters = resSlider ? parseFloat(resSlider.value) : 200;
+    const resMeters = 200; // Fixed base resolution to ensure global compatibility
     
+    // 1. Calculate fixed steps based on the world, not the view
+    // We use the equator-based meter-to-degree conversion for consistency
     const latStep = resMeters / 111320;
-    const lonStep = resMeters / (111320 * Math.cos(map.getCenter().lat * Math.PI / 180));
+    const lonStep = resMeters / (111320 * Math.cos(0)); // Use 0 to keep grid size consistent globally
 
-    // Anchor to global 0,0
+    // 2. THE GLOBAL SNAP
+    // Instead of using bounds.getSouth(), we floor the coordinate to the nearest latStep.
+    // This ensures that the start coordinate is always a multiple of the step.
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
+    // 3. Buffer area (generate 2 extra rows/cols around the view)
+    const endLat = Math.ceil(bounds.getNorth() / latStep) * latStep + (latStep * 2);
+    const endLon = Math.ceil(bounds.getEast() / lonStep) * lonStep + (lonStep * 2);
+
     let addedNew = false;
-    // Generate for slightly more than the view
-    for (let x = startLon; x < bounds.getEast() + lonStep; x += lonStep) {
-        for (let y = startLat; y < bounds.getNorth() + latStep; y += latStep) {
+
+    for (let x = startLon; x <= endLon; x += lonStep) {
+        for (let y = startLat; y <= endLat; y += latStep) {
+            
+            // Generate key based on snapped global coordinates
             const key = `${Math.round(x * PRECISION)}|${Math.round(y * PRECISION)}`;
+
             if (!existingSquares.has(key)) {
                 existingSquares.add(key);
                 gridData.features.push(createSquare(x, y, lonStep, latStep));
@@ -69,7 +76,7 @@ function generateGrid() {
 }
 
 map.on('load', () => {
-    // 1. Add Sources
+    // Add Sources
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
@@ -80,7 +87,7 @@ map.on('load', () => {
         });
     });
 
-    // 2. Add Grid Layer
+    // Add Grid Layer
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
         id: 'grid-fill',
@@ -88,19 +95,18 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': 'rgba(255, 255, 255, 0.3)',
-            'fill-opacity': 0.5
+            'fill-outline-color': 'rgba(255, 255, 255, 0.2)',
+            'fill-opacity': ['case', ['==', ['get', 'landUse'], 'unassigned'], 0.1, 0.6]
         }
     });
 
-    // 3. Initial Run
     generateGrid();
 });
 
-// Move events
+// Use moveend to prevent the browser from lagging while scrolling
 map.on('moveend', generateGrid);
 
-// Click interaction
+// Click interaction (Paint or Subdivide)
 map.on('click', 'grid-fill', (e) => {
     const feature = e.features[0];
     const coords = feature.geometry.coordinates[0][0];
@@ -111,14 +117,14 @@ map.on('click', 'grid-fill', (e) => {
         const sizeLon = feature.properties.sizeLon;
         const sizeLat = feature.properties.sizeLat;
         
-        // Remove parent
+        // Remove parent using the same key-based precision
         gridData.features = gridData.features.filter(f => 
-            !(Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.0000001 && 
-              Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.0000001)
+            !(Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.00000001 && 
+              Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.00000001)
         );
         existingSquares.delete(`${Math.round(lon * PRECISION)}|${Math.round(lat * PRECISION)}`);
 
-        // Create children
+        // Subdivide into 4x4
         const div = 4;
         const cLon = sizeLon / div;
         const cLat = sizeLat / div;
@@ -131,10 +137,9 @@ map.on('click', 'grid-fill', (e) => {
             }
         }
     } else {
-        // Find and paint
         const feat = gridData.features.find(f => 
-            Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.0000001 &&
-            Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.0000001
+            Math.abs(f.geometry.coordinates[0][0][0] - lon) < 0.00000001 &&
+            Math.abs(f.geometry.coordinates[0][0][1] - lat) < 0.00000001
         );
         if (feat) {
             feat.properties.landUse = activeLandUse;
@@ -144,7 +149,7 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// UI Listeners
+// UI Event Listeners
 document.getElementById('btn-subdivide').onclick = (e) => {
     isSubdivideMode = !isSubdivideMode;
     e.target.innerText = isSubdivideMode ? "MODE: SUBDIVIDING" : "MODE: PAINTING";
