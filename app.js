@@ -10,7 +10,7 @@ const map = new maplibregl.Map({
     style: {
         version: 8,
         sources: {},
-        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#1a1a1a' } }]
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#ffffff' } }]
     },
     center: INITIAL_STATE.center,
     zoom: INITIAL_STATE.zoom
@@ -89,8 +89,8 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': 'rgba(0, 0, 139, 0.9)',
-            'fill-opacity': 0.9 
+            'fill-outline-color': 'rgba(0, 0, 139, 0.6)',
+            'fill-opacity': 0.6 
         }
     });
 
@@ -143,6 +143,80 @@ map.on('click', 'grid-fill', (e) => {
     }
     
     map.getSource('grid-source').setData(gridData);
+});
+
+// Variable to track the selection box
+let startPoint, currentPoint, boxElement;
+
+// Disable default box zoom to use Shift+Drag for painting
+map.boxZoom.disable();
+
+map.on('mousedown', (e) => {
+    // Only trigger if in PAINT mode and Shift key is held
+    if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
+
+    // Prevent map panning while drawing the box
+    map.dragPan.disable();
+
+    startPoint = e.point;
+    boxElement = document.createElement('div');
+    boxElement.classList.add('box-draw');
+    document.body.appendChild(boxElement);
+});
+
+map.on('mousemove', (e) => {
+    if (!boxElement) return;
+
+    currentPoint = e.point;
+
+    const minX = Math.min(startPoint.x, currentPoint.x);
+    const maxX = Math.max(startPoint.x, currentPoint.x);
+    const minY = Math.min(startPoint.y, currentPoint.y);
+    const maxY = Math.max(startPoint.y, currentPoint.y);
+
+    boxElement.style.left = minX + 'px';
+    boxElement.style.top = minY + 'px';
+    boxElement.style.width = (maxX - minX) + 'px';
+    boxElement.style.height = (maxY - minY) + 'px';
+});
+
+map.on('mouseup', (e) => {
+    if (!boxElement) return;
+
+    // Capture the bounding box in screen coordinates
+    const bbox = [
+        [Math.min(startPoint.x, e.point.x), Math.min(startPoint.y, e.point.y)],
+        [Math.max(startPoint.x, e.point.x), Math.max(startPoint.y, e.point.y)]
+    ];
+
+    // Find all features from 'grid-fill' that fall inside this box
+    const selectedFeatures = map.queryRenderedFeatures(bbox, { layers: ['grid-fill'] });
+
+    if (selectedFeatures.length > 0) {
+        selectedFeatures.forEach(feature => {
+            const coords = feature.geometry.coordinates[0][0];
+            const lon = coords[0];
+            const lat = coords[1];
+            
+            // Find the square in our main data object
+            const targetIdx = gridData.features.findIndex(f => 
+                getCoordKey(f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]) === getCoordKey(lon, lat)
+            );
+
+            if (targetIdx !== -1) {
+                gridData.features[targetIdx].properties.landUse = activeLandUse;
+                gridData.features[targetIdx].properties.color = LAND_USE_COLORS[activeLandUse];
+            }
+        });
+
+        // Update the map source once
+        map.getSource('grid-source').setData(gridData);
+    }
+
+    // Cleanup
+    boxElement.remove();
+    boxElement = null;
+    map.dragPan.enable();
 });
 
 // MODE SWITCHER
