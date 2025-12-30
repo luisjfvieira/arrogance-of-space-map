@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Arrogance Explorer</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -10,9 +9,8 @@
 </head>
 <body>
     <div id="map"></div>
-
     <div id="ui-panel">
-        <h2 style="margin:0 0 10px 0; font-size:16px;">Arrogance Explorer</h2>
+        <h2 style="font-size:16px; margin:0 0 10px 0;">Arrogance Explorer</h2>
         
         <div class="control-group">
             <label><input type="checkbox" id="toggle-basemap" checked> Show Base Map</label>
@@ -25,17 +23,14 @@
         <hr>
 
         <div class="control-group">
-            <label>Initial Grid Size: <span id="res-val">200</span>m</label>
-            <input type="range" id="res-slider" min="50" max="1000" step="50" value="200">
+            <label>Grid Opacity: <span id="opacity-val">50</span>%</label>
+            <input type="range" id="opacity-slider" min="0" max="100" value="50">
         </div>
 
         <button id="btn-subdivide" class="primary-btn">MODE: PAINTING</button>
-        <p style="font-size: 10px; color: #666; margin: 5px 0;">Paint: Click to color | Split: Toggle Mode then click</p>
-
-        <hr>
+        <p style="font-size:10px; color:#666;">Click to paint. Toggle to split.</p>
 
         <div class="control-group">
-            <label>Land Use Categories:</label>
             <div id="legend">
                 <div class="legend-item active" data-use="cars"><span style="background:#ff0000"></span> Cars</div>
                 <div class="legend-item" data-use="pedestrians"><span style="background:#0000ff"></span> Peds</div>
@@ -44,19 +39,11 @@
                 <div class="legend-item" data-use="buildings"><span style="background:#ffff00"></span> Build.</div>
                 <div class="legend-item" data-use="green"><span style="background:#008000"></span> Green</div>
                 <div class="legend-item" data-use="dead space"><span style="background:#808080"></span> Dead</div>
-                <div class="legend-item" data-use="unassigned"><span style="background:#666666"></span> N/A</div>
             </div>
         </div>
-
-        <div class="control-group">
-            <label>Grid Opacity: <span id="opacity-val">50</span>%</label>
-            <input type="range" id="opacity-slider" min="0" max="100" value="50">
-        </div>
-
-        <button id="btn-export" class="secondary-btn">Export GeoJSON</button>
-        <button id="btn-clear" class="danger-btn">Reset All Data</button>
+        
+        <input type="range" id="res-slider" min="50" max="1000" step="50" value="200" style="display:none;">
     </div>
-
     <script src="map-config.js"></script>
     <script src="app.js"></script>
 </body>
