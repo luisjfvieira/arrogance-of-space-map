@@ -1,65 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arrogance of Space Map | Europe</title>
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div id="map"></div>
-    <div id="ui-panel">
-        <h2 style="margin:0 0 10px 0; font-size:16px;">Map Controls</h2>
-        
-        <div class="control-group">
-            <label><input type="checkbox" id="toggle-basemap" checked> Show Base Map</label>
-            <select id="layer-selector">
-                <option value="vector">Street Map</option>
-                <option value="satellite">Satellite</option>
-            </select>
-        </div>
-
-        <div class="control-group" id="sat-options-group" style="display:none;">
-            <select id="sat-provider-selector">
-                <option value="satellite_google">Google Satellite</option>
-                <option value="satellite_esri">Esri Imagery</option>
-            </select>
-        </div>
-
-        <hr>
-
-        <div class="control-group">
-            <label><input type="checkbox" id="toggle-grid" checked> Show Grid Overlay</label>
-            <label>Resolution: <span id="res-val">200</span>m</label>
-            <input type="range" id="res-slider" min="1" max="500" value="200">
-        </div>
-
-        <div class="control-group">
-            <label>Grid Opacity: <span id="opacity-val">50</span>%</label>
-            <input type="range" id="opacity-slider" min="0" max="100" value="50">
-        </div>
-
-        <button id="btn-draw" class="primary-btn">Manual Add (Shift+Drag)</button>
-        
-        <hr>
-
-        <div class="control-group">
-            <label>Land Use Brush:</label>
-            <div id="legend">
-                <div class="legend-item active" data-use="cars"><span style="background:#e74c3c"></span> Cars</div>
-                <div class="legend-item" data-use="pedestrians"><span style="background:#2ecc71"></span> People</div>
-                <div class="legend-item" data-use="cycling"><span style="background:#3498db"></span> Bikes</div>
-                <div class="legend-item" data-use="transit"><span style="background:#f1c40f"></span> Transit</div>
-            </div>
-        </div>
-
-        <button id="btn-export" class="secondary-btn">Export GeoJSON</button>
-        <button id="btn-clear" class="danger-btn">Clear All</button>
+<div id="ui-panel">
+    <h2 style="font-size:16px;">Global Arrogance Map</h2>
+    
+    <div class="control-group">
+        <label><input type="checkbox" id="toggle-basemap" checked> Base Map</label>
+        <select id="layer-selector">
+            <option value="vector">Street Map</option>
+            <option value="satellite">Satellite</option>
+        </select>
     </div>
 
-    <script src="map-config.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+    <hr>
+
+    <div class="control-group">
+        <label>Base Resolution:</label>
+        <input type="range" id="res-slider" min="50" max="500" value="200" step="50">
+        <span><span id="res-val">200</span>m</span>
+    </div>
+
+    <button id="btn-subdivide" class="primary-btn" style="margin-bottom:10px;">Mode: Painting</button>
+
+    <div class="control-group">
+        <label>Land Use Brush:</label>
+        <div id="legend">
+            <div class="legend-item active" data-use="cars"><span style="background:#e74c3c"></span> Cars</div>
+            <div class="legend-item" data-use="pedestrians"><span style="background:#2ecc71"></span> People</div>
+            <div class="legend-item" data-use="cycling"><span style="background:#3498db"></span> Bikes</div>
+            <div class="legend-item" data-use="transit"><span style="background:#f1c40f"></span> Transit</div>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label>Opacity: <span id="opacity-val">50</span>%</label>
+        <input type="range" id="opacity-slider" min="0" max="100" value="50">
+    </div>
+
+    <button id="btn-export" class="secondary-btn">Export Data</button>
+    <button id="btn-clear" class="danger-btn">Reset Grid</button>
+</div>
