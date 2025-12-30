@@ -5,17 +5,19 @@ let isSubdivideMode = false;
 const map = new maplibregl.Map({
     container: 'map',
     style: { version: 8, sources: {}, layers: [] },
-    center: [-9.139, 38.722],
-    zoom: 14
+    center: INITIAL_STATE.center,
+    zoom: INITIAL_STATE.zoom
 });
 
-// Helper to create a single square feature
-function createSquareFeature(lon, lat, lonStep, latStep, props = {}) {
+// Create a GeoJSON Polygon for a grid cell
+function createSquare(lon, lat, lonStep, latStep, props = {}) {
     return {
         type: 'Feature',
         properties: { 
             landUse: 'unassigned', 
             color: LAND_USE_COLORS['unassigned'],
+            sizeLon: lonStep,
+            sizeLat: latStep,
             ...props 
         },
         geometry: {
@@ -25,83 +27,101 @@ function createSquareFeature(lon, lat, lonStep, latStep, props = {}) {
     };
 }
 
-// Generates squares for the current viewport
+// Generate the initial grid for the current view
 function generateGlobalGrid() {
-    if (isSubdivideMode || map.getZoom() < 12) return;
-
+    if (map.getZoom() < 12) return; // Don't generate if zoomed out too far
+    
     const bounds = map.getBounds();
     const resMeters = parseFloat(document.getElementById('res-slider').value);
     
     const latStep = resMeters / 111320;
     const lonStep = resMeters / (111320 * Math.cos(bounds.getCenter().lat * Math.PI / 180));
 
+    // Snap to global absolute coordinates
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     const newFeatures = [];
     for (let x = startLon; x < bounds.getEast(); x += lonStep) {
         for (let y = startLat; y < bounds.getNorth(); y += latStep) {
-            // Only add if it doesn't already exist (to preserve painted squares)
+            // Check if this specific coordinate already exists in memory
             const exists = gridData.features.some(f => 
-                Math.abs(f.geometry.coordinates[0][0][0] - x) < 0.000001 &&
-                Math.abs(f.geometry.coordinates[0][0][1] - y) < 0.000001
+                Math.abs(f.geometry.coordinates[0][0][0] - x) < 0.0000001 &&
+                Math.abs(f.geometry.coordinates[0][0][1] - y) < 0.0000001
             );
             if (!exists) {
-                newFeatures.push(createSquareFeature(x, y, lonStep, latStep, { level: 'parent' }));
+                newFeatures.push(createSquare(x, y, lonStep, latStep));
             }
         }
     }
-    gridData.features = [...gridData.features, ...newFeatures];
-    map.getSource('grid-source').setData(gridData);
+    
+    if (newFeatures.length > 0) {
+        gridData.features = [...gridData.features, ...newFeatures];
+        map.getSource('grid-source').setData(gridData);
+    }
 }
 
 map.on('load', () => {
-    // Add Sources & Base Layers (OSM/Satellite)
+    // 1. Setup Base Map Layers
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
-        map.addLayer({ id: `layer-${id}`, type: 'raster', source: `src-${id}`, layout: { visibility: id === 'vector' ? 'visible' : 'none' }});
+        map.addLayer({
+            id: `layer-${id}`,
+            type: 'raster',
+            source: `src-${id}`,
+            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
+        });
     });
 
+    // 2. Setup Grid Overlay
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
-        id: 'grid-fill', type: 'fill', source: 'grid-source',
-        paint: { 'fill-color': ['get', 'color'], 'fill-outline-color': '#fff', 'fill-opacity': 0.5 }
+        id: 'grid-fill',
+        type: 'fill',
+        source: 'grid-source',
+        paint: {
+            'fill-color': ['get', 'color'],
+            'fill-outline-color': '#ffffff',
+            'fill-opacity': 0.5
+        }
     });
 
     generateGlobalGrid();
     map.on('moveend', generateGlobalGrid);
 
-    // SUBDIVIDE LOGIC
+    // 3. Click Logic (Paint or Subdivide)
     map.on('click', 'grid-fill', (e) => {
         const feature = e.features[0];
-        const coords = feature.geometry.coordinates[0][0]; // SW Corner
-        
+        const coords = feature.geometry.coordinates[0][0]; // SW corner anchor
+        const sizeLon = feature.properties.sizeLon;
+        const sizeLat = feature.properties.sizeLat;
+
         if (isSubdivideMode) {
-            // 1. Remove the parent square
+            // Remove the parent cell
             gridData.features = gridData.features.filter(f => 
-                !(f.geometry.coordinates[0][0][0] === coords[0] && f.geometry.coordinates[0][0][1] === coords[1])
+                !(Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 && 
+                  Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001)
             );
 
-            // 2. Calculate child dimensions (e.g., split into 10x10 = 100 smaller squares)
-            const parentRes = parseFloat(document.getElementById('res-slider').value);
-            const childRes = parentRes / 10;
-            const latStep = childRes / 111320;
-            const lonStep = childRes / (111320 * Math.cos(coords[1] * Math.PI / 180));
+            // Subdivide into a 4x4 child grid (16 squares)
+            const div = 4;
+            const childLonStep = sizeLon / div;
+            const childLatStep = sizeLat / div;
 
-            for (let i = 0; i < 10; i++) {
-                for (let j = 0; j < 10; j++) {
-                    gridData.features.push(createSquareFeature(
-                        coords[0] + (i * lonStep), 
-                        coords[1] + (j * latStep), 
-                        lonStep, latStep, 
-                        { level: 'child' }
+            for (let i = 0; i < div; i++) {
+                for (let j = 0; j < div; j++) {
+                    gridData.features.push(createSquare(
+                        coords[0] + (i * childLonStep), 
+                        coords[1] + (j * childLatStep), 
+                        childLonStep, childLatStep
                     ));
                 }
             }
         } else {
-            // PAINT LOGIC
+            // Paint Mode
             const feat = gridData.features.find(f => 
-                Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.000001
+                Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 &&
+                Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001
             );
             if (feat) {
                 feat.properties.landUse = activeLandUse;
@@ -111,10 +131,52 @@ map.on('load', () => {
         map.getSource('grid-source').setData(gridData);
     });
 
-    // UI Listeners
+    // 4. UI Event Listeners
     document.getElementById('btn-subdivide').onclick = (e) => {
         isSubdivideMode = !isSubdivideMode;
-        e.target.innerText = isSubdivideMode ? "Mode: Subdividing" : "Mode: Painting";
-        e.target.style.background = isSubdivideMode ? "#e67e22" : "#3498db";
+        e.target.innerText = isSubdivideMode ? "MODE: SUBDIVIDING" : "MODE: PAINTING";
+        e.target.classList.toggle('subdivide-active');
+    };
+
+    document.querySelectorAll('.legend-item').forEach(item => {
+        item.onclick = () => {
+            document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            activeLandUse = item.dataset.use;
+        };
+    });
+
+    const layerSel = document.getElementById('layer-selector');
+    const baseToggle = document.getElementById('toggle-basemap');
+    
+    function updateBaseMap() {
+        const isBaseOn = baseToggle.checked;
+        const mode = layerSel.value;
+        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && mode === 'vector') ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && mode === 'satellite') ? 'visible' : 'none');
+    }
+    
+    layerSel.addEventListener('change', updateBaseMap);
+    baseToggle.addEventListener('change', updateBaseMap);
+
+    document.getElementById('opacity-slider').oninput = (e) => {
+        map.setPaintProperty('grid-fill', 'fill-opacity', e.target.value / 100);
+        document.getElementById('opacity-val').innerText = e.target.value;
+    };
+
+    document.getElementById('btn-export').onclick = () => {
+        const blob = new Blob([JSON.stringify(gridData)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "global_arrogance_data.geojson";
+        a.click();
+    };
+
+    document.getElementById('btn-clear').onclick = () => {
+        if(confirm("Clear all your mapped data?")) {
+            gridData.features = [];
+            generateGlobalGrid();
+        }
     };
 });
