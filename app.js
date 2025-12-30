@@ -5,6 +5,12 @@ let currentMode = 'pan'; // Modes: 'pan', 'paint', 'subdivide'
 
 const PRECISION = 1000000;
 
+// Variable to track the selection box
+let startPoint, currentPoint, boxElement;
+
+// Disable default box zoom to use Shift+Drag for painting
+map.boxZoom.disable();
+
 const map = new maplibregl.Map({
     container: 'map',
     style: {
