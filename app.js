@@ -86,8 +86,8 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': '#00008b',
-            'fill-opacity': 1 
+            'fill-outline-color': 'rgba(0, 0, 139, 0.9)',
+            'fill-opacity': 0.9 
         }
     });
 
