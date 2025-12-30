@@ -68,14 +68,17 @@ function generateGrid() {
 }
 
 map.on('load', () => {
-    // Add Base Maps
+    // 1. Add both sources and layers
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
-            id: `layer-${id}`,
+            id: `layer-${id}`, // This creates 'layer-vector' and 'layer-satellite'
             type: 'raster',
             source: `src-${id}`,
-            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
+            layout: { 
+                // Only show vector (OSM) on start, hide satellite
+                visibility: id === 'vector' ? 'visible' : 'none' 
+            }
         });
     });
     
@@ -169,3 +172,27 @@ document.querySelectorAll('.legend-item').forEach(item => {
         activeLandUse = item.dataset.use;
     };
 });
+
+// Function to sync the map with the UI settings
+const updateBase = () => {
+    const isBaseOn = document.getElementById('toggle-basemap').checked;
+    const selectedMode = document.getElementById('layer-selector').value;
+
+    // Toggle Vector Layer (OSM)
+    map.setLayoutProperty(
+        'layer-vector', 
+        'visibility', 
+        (isBaseOn && selectedMode === 'vector') ? 'visible' : 'none'
+    );
+
+    // Toggle Satellite Layer (Google)
+    map.setLayoutProperty(
+        'layer-satellite', 
+        'visibility', 
+        (isBaseOn && selectedMode === 'satellite') ? 'visible' : 'none'
+    );
+};
+
+// Attach listeners to the HTML elements
+document.getElementById('toggle-basemap').onchange = updateBase;
+document.getElementById('layer-selector').onchange = updateBase;
