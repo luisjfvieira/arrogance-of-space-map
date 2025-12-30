@@ -50,7 +50,6 @@ function generateGrid() {
     
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    // Account for Lisbon latitude (approx 38.7) for square aspect ratio
     const lonStep = resMeters / (111320 * Math.cos(38.7 * Math.PI / 180));
 
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
@@ -146,7 +145,7 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL
+// 6. WINDOW TOOL (FIXED)
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
     
@@ -173,32 +172,29 @@ map.on('mousemove', (e) => {
 map.on('mouseup', (e) => {
     if (!boxElement) return;
 
-    const bbox = [
-        [Math.min(startPoint.x, e.point.x), Math.min(startPoint.y, e.point.y)],
-        [Math.max(startPoint.x, e.point.x), Math.max(startPoint.y, e.point.y)]
-    ];
+    // 1. Get box bounds in LngLat (Geographic) coordinates
+    const p1 = map.unproject(startPoint);
+    const p2 = map.unproject(e.point);
 
-    const selectedFeatures = map.queryRenderedFeatures(bbox, { layers: ['grid-fill'] });
+    const minLon = Math.min(p1.lng, p2.lng);
+    const maxLon = Math.max(p1.lng, p2.lng);
+    const minLat = Math.min(p1.lat, p2.lat);
+    const maxLat = Math.max(p1.lat, p2.lat);
 
-    if (selectedFeatures.length > 0) {
-        const processedKeys = new Set();
-        selectedFeatures.forEach(feature => {
-            const coords = feature.geometry.coordinates[0][0];
-            const key = getCoordKey(coords[0], coords[1]);
-            
-            if (!processedKeys.has(key)) {
-                processedKeys.add(key);
-                const targetIdx = gridData.features.findIndex(f => 
-                    getCoordKey(f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]) === key
-                );
-                if (targetIdx !== -1) {
-                    gridData.features[targetIdx].properties.landUse = activeLandUse;
-                    gridData.features[targetIdx].properties.color = LAND_USE_COLORS[activeLandUse];
-                }
-            }
-        });
-        map.getSource('grid-source').setData(gridData);
-    }
+    // 2. Filter internal data directly instead of querying the screen
+    gridData.features.forEach(feature => {
+        const coords = feature.geometry.coordinates[0][0]; // Bottom-left corner
+        const lon = coords[0];
+        const lat = coords[1];
+
+        // Check if the square's origin falls inside the selection box
+        if (lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat) {
+            feature.properties.landUse = activeLandUse;
+            feature.properties.color = LAND_USE_COLORS[activeLandUse];
+        }
+    });
+
+    map.getSource('grid-source').setData(gridData);
 
     boxElement.remove();
     boxElement = null;
@@ -207,13 +203,10 @@ map.on('mouseup', (e) => {
 // 7. UI LOGIC & CONTROLS
 function setMode(mode) {
     currentMode = mode;
-    
-    // Update Buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     const targetBtn = document.getElementById(`btn-mode-${mode}`);
     if (targetBtn) targetBtn.classList.add('active');
 
-    // Handle Pan/Zoom Logic
     const instruction = document.getElementById('mode-instruction');
     if (mode === 'pan') {
         map.dragPan.enable();
