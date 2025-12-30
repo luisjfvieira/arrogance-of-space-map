@@ -1,63 +1,21 @@
-/* Reset and Base Styles */
-body, html { 
-    margin: 0; 
-    padding: 0; 
-    width: 100%; 
-    height: 100%; 
-    overflow: hidden; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; 
-}
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100vh; background: #eee; }
 
-/* Map takes up the full screen */
-#map { 
-    position: absolute; 
-    top: 0; 
-    bottom: 0; 
-    width: 100%; 
-    height: 100vh; 
-    background: #222; /* Dark fallback while loading */
-}
-
-/* Floating UI Panel */
 #ui-panel {
-    position: absolute; 
-    top: 15px; 
-    left: 15px; 
-    width: 240px;
-    background: rgba(255, 255, 255, 0.95); 
-    padding: 15px; 
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); 
-    z-index: 100;
-    max-height: 90vh;
-    overflow-y: auto;
+    position: absolute; top: 15px; left: 15px; width: 220px;
+    background: white; padding: 15px; border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100;
 }
 
-/* Typography and Layout */
-h2 { margin-top: 0; font-size: 16px; color: #333; }
-.control-group { margin-bottom: 12px; }
-label { display: block; font-weight: bold; font-size: 12px; margin-bottom: 4px; color: #444; }
-select, input[type="range"] { width: 100%; cursor: pointer; }
+.control-group { margin-bottom: 10px; }
+label { display: block; font-weight: bold; font-size: 11px; margin-bottom: 3px; }
 
-/* Main Action Buttons */
-.primary-btn { 
-    width: 100%; 
-    padding: 10px; 
-    background: #3498db; 
-    color: white; 
-    border: none; 
-    border-radius: 4px; 
-    cursor: pointer; 
-    font-weight: bold; 
-    transition: background 0.3s ease;
-}
+.primary-btn { width: 100%; padding: 8px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.primary-btn.subdivide-active { background: #e67e22; }
 
-/* Visual cue when in Subdivision Mode */
-.primary-btn.subdivide-active { 
-    background: #e67e22; /* Orange to signal "Warning: Editing Mode" */
-}
+#legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px; }
+.legend-item { display: flex; align-items: center; padding: 4px; background: #f4f4f4; border-radius: 4px; cursor: pointer; font-size: 10px; }
+.legend-item.active { background: #fff; border: 1px solid #333; }
+.legend-item span { width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
 
-.secondary-btn { 
-    width: 100%; 
-    padding: 8px; 
-    background: #2ecc71;
+hr { border: 0; border-top: 1px solid #eee; margin: 10px 0; }
