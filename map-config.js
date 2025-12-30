@@ -4,14 +4,14 @@ const MAP_SOURCES = {
 };
 
 const LAND_USE_COLORS = {
-    'unassigned': '#666666',      // Neutral Grey
-    'cars': '#e74c3c',            // Red (The Arrogance of Car Space)
-    'pedestrians': '#2ecc71',     // Green (Walking)
-    'cyclists': '#3498db',        // Blue (Biking)
-    'public transit': '#f1c40f',  // Yellow (Buses/Trams)
-    'buildings': '#2c3e50',       // Dark Navy (Built Environment)
-    'green': '#27ae60',           // Forest Green (Parks/Nature)
-    'dead space': '#9b59b6'       // Purple (Wasted/Residual Space)
+    'unassigned': 'rgba(0, 0, 0, 0.1)', // Subtle outline/fill
+    'cars': '#ff0000',           // Red
+    'pedestrians': '#0000ff',    // Blue
+    'cyclists': '#800080',       // Purple
+    'public transit': '#ffa500', // Orange (keeping a distinct transit color)
+    'buildings': '#ffff00',      // Yellow
+    'green': '#008000',          // Green
+    'dead space': '#808080'      // Grey
 };
 
 const INITIAL_STATE = {
