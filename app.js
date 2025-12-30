@@ -2,7 +2,7 @@ let gridData = { type: 'FeatureCollection', features: [] };
 let activeLandUse = 'cars';
 let isSubdivideMode = false;
 
-// 1. Initialize Map with a default background
+// 1. Initialize Map with a strict order
 const map = new maplibregl.Map({
     container: 'map',
     style: {
@@ -34,24 +34,18 @@ function createSquare(lon, lat, lonStep, latStep, props = {}) {
 }
 
 function generateGrid() {
-    // Only generate if we are zoomed in enough to see streets
     if (map.getZoom() < 12) return;
-    
     const bounds = map.getBounds();
     const resMeters = parseFloat(document.getElementById('res-slider').value);
-    
-    // Calculate geographic steps based on meters
     const latStep = resMeters / 111320;
     const lonStep = resMeters / (111320 * Math.cos(bounds.getCenter().lat * Math.PI / 180));
 
-    // Align to global grid (snapping)
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
 
     const newFeatures = [];
     for (let x = startLon; x < bounds.getEast(); x += lonStep) {
         for (let y = startLat; y < bounds.getNorth(); y += latStep) {
-            // Avoid duplicates
             const exists = gridData.features.some(f => 
                 Math.abs(f.geometry.coordinates[0][0][0] - x) < 0.0000001 &&
                 Math.abs(f.geometry.coordinates[0][0][1] - y) < 0.0000001
@@ -61,28 +55,26 @@ function generateGrid() {
             }
         }
     }
-    
     if (newFeatures.length > 0) {
         gridData.features = [...gridData.features, ...newFeatures];
-        if (map.getSource('grid-source')) {
-            map.getSource('grid-source').setData(gridData);
-        }
+        if (map.getSource('grid-source')) map.getSource('grid-source').setData(gridData);
     }
 }
 
 map.on('load', () => {
-    // 2. Add Base Sources (OSM and Satellite)
+    // 2. ADD BASEMAP SOURCES & LAYERS FIRST
     Object.keys(MAP_SOURCES).forEach(id => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
             id: `layer-${id}`,
             type: 'raster',
             source: `src-${id}`,
-            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
-        }, 'background'); // Place them above background
+            layout: { visibility: id === 'vector' ? 'visible' : 'none' },
+            paint: { 'raster-opacity': 1 }
+        });
     });
 
-    // 3. Add Grid Source and Layer
+    // 3. ADD GRID SOURCE & LAYER ON TOP
     map.addSource('grid-source', { type: 'geojson', data: gridData });
     map.addLayer({
         id: 'grid-fill',
@@ -91,39 +83,33 @@ map.on('load', () => {
         paint: {
             'fill-color': ['get', 'color'],
             'fill-outline-color': '#ffffff',
-            'fill-opacity': 0.5
+            'fill-opacity': 0.5 // Controlled by slider
         }
     });
 
-    // Start grid generation
     generateGrid();
     map.on('moveend', generateGrid);
 
-    // 4. Click Interaction (Paint or Subdivide)
+    // CLICK LOGIC
     map.on('click', 'grid-fill', (e) => {
         const feature = e.features[0];
-        const coords = feature.geometry.coordinates[0][0]; 
+        const coords = feature.geometry.coordinates[0][0];
         const sizeLon = feature.properties.sizeLon;
         const sizeLat = feature.properties.sizeLat;
 
         if (isSubdivideMode) {
-            // Remove the parent square
             gridData.features = gridData.features.filter(f => 
                 !(Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 && 
                   Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001)
             );
-
-            // Split into 4x4 children
             const div = 4;
-            const cLon = sizeLon / div;
-            const cLat = sizeLat / div;
+            const cLon = sizeLon / div; const cLat = sizeLat / div;
             for (let i = 0; i < div; i++) {
                 for (let j = 0; j < div; j++) {
                     gridData.features.push(createSquare(coords[0] + (i * cLon), coords[1] + (j * cLat), cLon, cLat));
                 }
             }
         } else {
-            // Color the square
             const feat = gridData.features.find(f => 
                 Math.abs(f.geometry.coordinates[0][0][0] - coords[0]) < 0.0000001 &&
                 Math.abs(f.geometry.coordinates[0][0][1] - coords[1]) < 0.0000001
@@ -136,7 +122,7 @@ map.on('load', () => {
         map.getSource('grid-source').setData(gridData);
     });
 
-    // UI Controls
+    // UI CONTROL LISTENERS
     document.getElementById('btn-subdivide').onclick = (e) => {
         isSubdivideMode = !isSubdivideMode;
         e.target.innerText = isSubdivideMode ? "MODE: SUBDIVIDING" : "MODE: PAINTING";
@@ -151,22 +137,21 @@ map.on('load', () => {
         };
     });
 
-    document.getElementById('layer-selector').addEventListener('change', (e) => {
-        const mode = e.target.value;
-        const isBaseOn = document.getElementById('toggle-basemap').checked;
-        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && mode === 'vector') ? 'visible' : 'none');
-        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && mode === 'satellite') ? 'visible' : 'none');
-    });
-
-    document.getElementById('toggle-basemap').addEventListener('change', (e) => {
-        const mode = document.getElementById('layer-selector').value;
-        const isBaseOn = e.target.checked;
-        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && mode === 'vector') ? 'visible' : 'none');
-        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && mode === 'satellite') ? 'visible' : 'none');
-    });
-
+    // FIX TRANSPARENCY BUG: Correctly targeting the 'grid-fill' layer
     document.getElementById('opacity-slider').oninput = (e) => {
-        map.setPaintProperty('grid-fill', 'fill-opacity', e.target.value / 100);
+        const val = parseFloat(e.target.value) / 100;
+        map.setPaintProperty('grid-fill', 'fill-opacity', val);
         document.getElementById('opacity-val').innerText = e.target.value;
     };
+
+    // FIX BASEMAP TOGGLE BUG
+    function updateBasemap() {
+        const isBaseOn = document.getElementById('toggle-basemap').checked;
+        const selected = document.getElementById('layer-selector').value;
+        map.setLayoutProperty('layer-vector', 'visibility', (isBaseOn && selected === 'vector') ? 'visible' : 'none');
+        map.setLayoutProperty('layer-satellite', 'visibility', (isBaseOn && selected === 'satellite') ? 'visible' : 'none');
+    }
+
+    document.getElementById('toggle-basemap').onchange = updateBasemap;
+    document.getElementById('layer-selector').onchange = updateBasemap;
 });
