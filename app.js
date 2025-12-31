@@ -145,7 +145,7 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL (FIXED)
+// 6. WINDOW TOOL (ENFORCED FULL CONTAINMENT)
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
     
@@ -172,23 +172,35 @@ map.on('mousemove', (e) => {
 map.on('mouseup', (e) => {
     if (!boxElement) return;
 
-    // 1. Get box bounds in LngLat (Geographic) coordinates
+    // Convert selection box to Geographic (LngLat)
     const p1 = map.unproject(startPoint);
     const p2 = map.unproject(e.point);
 
-    const minLon = Math.min(p1.lng, p2.lng);
-    const maxLon = Math.max(p1.lng, p2.lng);
-    const minLat = Math.min(p1.lat, p2.lat);
-    const maxLat = Math.max(p1.lat, p2.lat);
+    const boxMinLon = Math.min(p1.lng, p2.lng);
+    const boxMaxLon = Math.max(p1.lng, p2.lng);
+    const boxMinLat = Math.min(p1.lat, p2.lat);
+    const boxMaxLat = Math.max(p1.lat, p2.lat);
 
-    // 2. Filter internal data directly instead of querying the screen
+    // Filter features: check if ALL corners are inside the box
     gridData.features.forEach(feature => {
+        const props = feature.properties;
         const coords = feature.geometry.coordinates[0][0]; // Bottom-left corner
-        const lon = coords[0];
-        const lat = coords[1];
+        
+        const sqMinLon = coords[0];
+        const sqMinLat = coords[1];
+        // Calculate the opposite corner using the stored size
+        const sqMaxLon = sqMinLon + props.sizeLon;
+        const sqMaxLat = sqMinLat + props.sizeLat;
 
-        // Check if the square's origin falls inside the selection box
-        if (lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat) {
+        // Strict Containment Check
+        const isFullyContained = (
+            sqMinLon >= boxMinLon && 
+            sqMaxLon <= boxMaxLon && 
+            sqMinLat >= boxMinLat && 
+            sqMaxLat <= boxMaxLat
+        );
+
+        if (isFullyContained) {
             feature.properties.landUse = activeLandUse;
             feature.properties.color = LAND_USE_COLORS[activeLandUse];
         }
