@@ -21,7 +21,8 @@ const LAND_USE_COLORS = {
     'public transit': '#ffa500',
     'buildings': '#ffff00',
     'green': '#008000',
-    'dead space': '#808080'
+    'dead space': '#808080',
+    'eraser': 'rgba(102, 102, 102, 0.0)'
 };
 
 const INITIAL_STATE = {
