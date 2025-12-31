@@ -5,7 +5,6 @@ let activeLandUse = 'cars';
 let currentMode = 'pan'; 
 const PRECISION = 1000000;
 
-// Variables for the selection box (Window tool)
 let startPoint, currentPoint, boxElement;
 
 // 2. INITIALIZE MAP
@@ -24,7 +23,6 @@ const map = new maplibregl.Map({
     zoom: INITIAL_STATE.zoom
 });
 
-// Disable default box zoom to use Shift+Drag for our custom tool
 map.boxZoom.disable();
 
 // 3. CORE FUNCTIONS
@@ -50,10 +48,10 @@ function generateGrid() {
     if (map.getZoom() < 12) return;
     const bounds = map.getBounds();
     
-    // Fixed base grid calculation (Initial 200m)
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    const lonStep = resMeters / (111320 * Math.cos(38.7 * Math.PI / 180)); // Adjusted for Lisbon
+    // LonStep calculated for Lisbon latitude (~38.7 N)
+    const lonStep = resMeters / (111320 * Math.cos(38.7 * Math.PI / 180));
 
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
     const startLon = Math.floor(bounds.getWest() / lonStep) * lonStep;
@@ -150,7 +148,6 @@ map.on('click', 'grid-fill', (e) => {
 
 // 6. WINDOW TOOL (ENFORCED FULL CONTAINMENT)
 map.on('mousedown', (e) => {
-    // Enable box selection in Paint mode with Shift held
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
     
     startPoint = e.point;
@@ -161,3 +158,21 @@ map.on('mousedown', (e) => {
 
 map.on('mousemove', (e) => {
     if (!boxElement) return;
+    currentPoint = e.point;
+    const minX = Math.min(startPoint.x, currentPoint.x);
+    const maxX = Math.max(startPoint.x, currentPoint.x);
+    const minY = Math.min(startPoint.y, currentPoint.y);
+    const maxY = Math.max(startPoint.y, currentPoint.y);
+
+    boxElement.style.left = minX + 'px';
+    boxElement.style.top = minY + 'px';
+    boxElement.style.width = (maxX - minX) + 'px';
+    boxElement.style.height = (maxY - minY) + 'px';
+});
+
+map.on('mouseup', (e) => {
+    if (!boxElement) return;
+
+    // Convert selection box edges to geographic coordinates
+    const p1 = map.unproject(startPoint);
+    const p2 = map.un
