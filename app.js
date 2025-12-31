@@ -272,3 +272,20 @@ document.querySelectorAll('.legend-item').forEach(item => {
         activeLandUse = item.dataset.use;
     };
 });
+
+// 7. BASEMAP CONTROLS
+const updateBase = () => {
+    const isBaseOn = document.getElementById('toggle-basemap').checked;
+    const selectedMode = document.getElementById('layer-selector').value;
+
+    ['vector', 'satellite'].forEach(id => {
+        if (map.getLayer(`layer-${id}`)) {
+            const isVisible = (isBaseOn && selectedMode === id);
+            map.setLayoutProperty(`layer-${id}`, 'visibility', isVisible ? 'visible' : 'none');
+        }
+    });
+};
+
+// Listeners for the Basemap UI
+document.getElementById('toggle-basemap').onchange = updateBase;
+document.getElementById('layer-selector').onchange = updateBase;
