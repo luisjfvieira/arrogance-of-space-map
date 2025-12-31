@@ -145,7 +145,7 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL
+// 6. WINDOW TOOL (FIXED)
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
     
@@ -172,6 +172,7 @@ map.on('mousemove', (e) => {
 map.on('mouseup', (e) => {
     if (!boxElement) return;
 
+    // 1. Get box bounds in LngLat (Geographic) coordinates
     const p1 = map.unproject(startPoint);
     const p2 = map.unproject(e.point);
 
@@ -180,11 +181,13 @@ map.on('mouseup', (e) => {
     const minLat = Math.min(p1.lat, p2.lat);
     const maxLat = Math.max(p1.lat, p2.lat);
 
+    // 2. Filter internal data directly instead of querying the screen
     gridData.features.forEach(feature => {
-        const coords = feature.geometry.coordinates[0][0]; 
+        const coords = feature.geometry.coordinates[0][0]; // Bottom-left corner
         const lon = coords[0];
         const lat = coords[1];
 
+        // Check if the square's origin falls inside the selection box
         if (lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat) {
             feature.properties.landUse = activeLandUse;
             feature.properties.color = LAND_USE_COLORS[activeLandUse];
@@ -220,4 +223,31 @@ function setMode(mode) {
 
 document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
 document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
-document.getElementById('btn-
+document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
+
+document.getElementById('opacity-slider').oninput = (e) => {
+    map.setPaintProperty('grid-fill', 'fill-opacity', parseFloat(e.target.value) / 100);
+    document.getElementById('opacity-val').innerText = e.target.value;
+};
+
+document.querySelectorAll('.legend-item').forEach(item => {
+    item.onclick = () => {
+        document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        activeLandUse = item.dataset.use;
+    };
+});
+
+const updateBase = () => {
+    const isBaseOn = document.getElementById('toggle-basemap').checked;
+    const selectedMode = document.getElementById('layer-selector').value;
+
+    ['vector', 'satellite'].forEach(id => {
+        if (map.getLayer(`layer-${id}`)) {
+            map.setLayoutProperty(`layer-${id}`, 'visibility', (isBaseOn && selectedMode === id) ? 'visible' : 'none');
+        }
+    });
+};
+
+document.getElementById('toggle-basemap').onchange = updateBase;
+document.getElementById('layer-selector').onchange = updateBase;
