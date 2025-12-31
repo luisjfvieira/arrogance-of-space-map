@@ -3,7 +3,6 @@ let gridData = { type: 'FeatureCollection', features: [] };
 let existingSquares = new Set();
 let activeLandUse = 'cars';
 let currentMode = 'pan'; 
-let subdivisionFactor = 4; // Default to 4x4
 const PRECISION = 1000000;
 
 let startPoint, currentPoint, boxElement;
@@ -124,8 +123,7 @@ map.on('click', 'grid-fill', (e) => {
         gridData.features.splice(targetIdx, 1);
         existingSquares.delete(key);
 
-        // Using the dynamic subdivision factor from the slider
-        const div = subdivisionFactor;
+        const div = 4;
         const cLon = sizeLon / div;
         const cLat = sizeLat / div;
         for (let i = 0; i < div; i++) {
@@ -147,9 +145,10 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL (STRICT CONTAINMENT)
+// 6. WINDOW TOOL (ENFORCED FULL CONTAINMENT)
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
+    
     startPoint = e.point;
     boxElement = document.createElement('div');
     boxElement.classList.add('box-draw');
@@ -163,6 +162,7 @@ map.on('mousemove', (e) => {
     const maxX = Math.max(startPoint.x, currentPoint.x);
     const minY = Math.min(startPoint.y, currentPoint.y);
     const maxY = Math.max(startPoint.y, currentPoint.y);
+
     boxElement.style.left = minX + 'px';
     boxElement.style.top = minY + 'px';
     boxElement.style.width = (maxX - minX) + 'px';
@@ -171,21 +171,28 @@ map.on('mousemove', (e) => {
 
 map.on('mouseup', (e) => {
     if (!boxElement) return;
+
+    // Convert selection box to Geographic (LngLat)
     const p1 = map.unproject(startPoint);
     const p2 = map.unproject(e.point);
+
     const boxMinLon = Math.min(p1.lng, p2.lng);
     const boxMaxLon = Math.max(p1.lng, p2.lng);
     const boxMinLat = Math.min(p1.lat, p2.lat);
     const boxMaxLat = Math.max(p1.lat, p2.lat);
 
+    // Filter features: check if ALL corners are inside the box
     gridData.features.forEach(feature => {
         const props = feature.properties;
-        const coords = feature.geometry.coordinates[0][0]; 
+        const coords = feature.geometry.coordinates[0][0]; // Bottom-left corner
+        
         const sqMinLon = coords[0];
         const sqMinLat = coords[1];
+        // Calculate the opposite corner using the stored size
         const sqMaxLon = sqMinLon + props.sizeLon;
         const sqMaxLat = sqMinLat + props.sizeLat;
 
+        // Strict Containment Check
         const isFullyContained = (
             sqMinLon >= boxMinLon && 
             sqMaxLon <= boxMaxLon && 
@@ -200,6 +207,7 @@ map.on('mouseup', (e) => {
     });
 
     map.getSource('grid-source').setData(gridData);
+
     boxElement.remove();
     boxElement = null;
 });
@@ -220,29 +228,20 @@ function setMode(mode) {
         map.dragPan.disable();
         map.getCanvas().style.cursor = 'crosshair';
         instruction.innerText = (mode === 'paint') 
-            ? "Pan locked. Zoom to move. Shift+Drag to paint." 
+            ? "Pan locked. Zoom to move. Click or Shift+Drag to paint." 
             : "Pan locked. Zoom to move. Click a square to split.";
     }
 }
 
-// Slider Listeners
-document.getElementById('split-slider').oninput = (e) => {
-    subdivisionFactor = parseInt(e.target.value);
-    document.getElementById('split-val').innerText = subdivisionFactor;
-    document.getElementById('split-val-2').innerText = subdivisionFactor;
-};
+document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
+document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
+document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
 
 document.getElementById('opacity-slider').oninput = (e) => {
     map.setPaintProperty('grid-fill', 'fill-opacity', parseFloat(e.target.value) / 100);
     document.getElementById('opacity-val').innerText = e.target.value;
 };
 
-// Mode Listeners
-document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
-document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
-document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
-
-// Legend Listeners
 document.querySelectorAll('.legend-item').forEach(item => {
     item.onclick = () => {
         document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
@@ -254,6 +253,7 @@ document.querySelectorAll('.legend-item').forEach(item => {
 const updateBase = () => {
     const isBaseOn = document.getElementById('toggle-basemap').checked;
     const selectedMode = document.getElementById('layer-selector').value;
+
     ['vector', 'satellite'].forEach(id => {
         if (map.getLayer(`layer-${id}`)) {
             map.setLayoutProperty(`layer-${id}`, 'visibility', (isBaseOn && selectedMode === id) ? 'visible' : 'none');
