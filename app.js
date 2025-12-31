@@ -3,9 +3,11 @@ let gridData = { type: 'FeatureCollection', features: [] };
 let existingSquares = new Set();
 let activeLandUse = 'cars';
 let currentMode = 'pan'; 
+let subdivisionFactor = 10; // Default factor
 const PRECISION = 1000000;
 
 let startPoint, currentPoint, boxElement;
+let isShiftPainting = false;
 
 // 2. INITIALIZE MAP
 const map = new maplibregl.Map({
@@ -72,6 +74,31 @@ function generateGrid() {
     }
 }
 
+// Helper Function for "Brush" painting
+function paintAtPoint(point) {
+    const features = map.queryRenderedFeatures(point, { layers: ['grid-fill'] });
+    
+    if (features.length > 0) {
+        const feature = features[0];
+        const coords = feature.geometry.coordinates[0][0];
+        const key = getCoordKey(coords[0], coords[1]);
+
+        const targetIdx = gridData.features.findIndex(f => 
+            getCoordKey(f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]) === key
+        );
+
+        if (targetIdx !== -1) {
+            const featProps = gridData.features[targetIdx].properties;
+            // Only update if the color actually changes to save performance
+            if (featProps.landUse !== activeLandUse) {
+                featProps.landUse = activeLandUse;
+                featProps.color = LAND_USE_COLORS[activeLandUse];
+                map.getSource('grid-source').setData(gridData);
+            }
+        }
+    }
+}
+
 // 4. MAP LOADING
 map.on('load', () => {
     Object.keys(MAP_SOURCES).forEach(id => {
@@ -91,7 +118,7 @@ map.on('load', () => {
         source: 'grid-source',
         paint: {
             'fill-color': ['get', 'color'],
-            'fill-outline-color': 'rgba(0, 0, 139, 0.6)',
+            'fill-outline-color': 'rgba(0, 0, 139, 0.4)',
             'fill-opacity': 0.6 
         }
     });
@@ -101,7 +128,7 @@ map.on('load', () => {
 
 map.on('moveend', generateGrid);
 
-// 5. CLICK INTERACTION
+// 5. CLICK INTERACTION (Single Click Split or Paint)
 map.on('click', 'grid-fill', (e) => {
     if (currentMode === 'pan') return;
 
@@ -123,7 +150,7 @@ map.on('click', 'grid-fill', (e) => {
         gridData.features.splice(targetIdx, 1);
         existingSquares.delete(key);
 
-        const div = 4;
+        const div = subdivisionFactor;
         const cLon = sizeLon / div;
         const cLat = sizeLat / div;
         for (let i = 0; i < div; i++) {
@@ -137,25 +164,38 @@ map.on('click', 'grid-fill', (e) => {
                 }));
             }
         }
-    } else if (currentMode === 'paint') {
+        map.getSource('grid-source').setData(gridData);
+    } else if (currentMode === 'paint' && !e.originalEvent.shiftKey) {
+        // Single click paint (if not dragging)
         gridData.features[targetIdx].properties.landUse = activeLandUse;
         gridData.features[targetIdx].properties.color = LAND_USE_COLORS[activeLandUse];
+        map.getSource('grid-source').setData(gridData);
     }
-    
-    map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL (ENFORCED FULL CONTAINMENT)
+// 6. WINDOW TOOL & BRUSH PAINTING (Enhanced Interaction)
 map.on('mousedown', (e) => {
-    if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
-    
-    startPoint = e.point;
-    boxElement = document.createElement('div');
-    boxElement.classList.add('box-draw');
-    document.body.appendChild(boxElement);
+    if (currentMode !== 'paint') return;
+
+    if (e.originalEvent.shiftKey) {
+        isShiftPainting = true;
+        paintAtPoint(e.point);
+    } else {
+        startPoint = e.point;
+        boxElement = document.createElement('div');
+        boxElement.classList.add('box-draw');
+        document.body.appendChild(boxElement);
+    }
 });
 
 map.on('mousemove', (e) => {
+    if (currentMode !== 'paint') return;
+
+    if (isShiftPainting) {
+        paintAtPoint(e.point);
+        return;
+    }
+
     if (!boxElement) return;
     currentPoint = e.point;
     const minX = Math.min(startPoint.x, currentPoint.x);
@@ -170,9 +210,11 @@ map.on('mousemove', (e) => {
 });
 
 map.on('mouseup', (e) => {
+    isShiftPainting = false;
+
     if (!boxElement) return;
 
-    // Convert selection box to Geographic (LngLat)
+    // Convert selection box to Geographic coordinates
     const p1 = map.unproject(startPoint);
     const p2 = map.unproject(e.point);
 
@@ -181,18 +223,15 @@ map.on('mouseup', (e) => {
     const boxMinLat = Math.min(p1.lat, p2.lat);
     const boxMaxLat = Math.max(p1.lat, p2.lat);
 
-    // Filter features: check if ALL corners are inside the box
+    // Apply strict containment check
     gridData.features.forEach(feature => {
         const props = feature.properties;
-        const coords = feature.geometry.coordinates[0][0]; // Bottom-left corner
-        
+        const coords = feature.geometry.coordinates[0][0]; 
         const sqMinLon = coords[0];
         const sqMinLat = coords[1];
-        // Calculate the opposite corner using the stored size
         const sqMaxLon = sqMinLon + props.sizeLon;
         const sqMaxLat = sqMinLat + props.sizeLat;
 
-        // Strict Containment Check
         const isFullyContained = (
             sqMinLon >= boxMinLon && 
             sqMaxLon <= boxMaxLon && 
@@ -207,7 +246,6 @@ map.on('mouseup', (e) => {
     });
 
     map.getSource('grid-source').setData(gridData);
-
     boxElement.remove();
     boxElement = null;
 });
@@ -228,20 +266,30 @@ function setMode(mode) {
         map.dragPan.disable();
         map.getCanvas().style.cursor = 'crosshair';
         instruction.innerText = (mode === 'paint') 
-            ? "Pan locked. Zoom to move. Click or Shift+Drag to paint." 
-            : "Pan locked. Zoom to move. Click a square to split.";
+            ? "Click+Drag for box. Shift+Drag to brush paint." 
+            : "Click a square to split it.";
     }
 }
 
-document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
-document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
-document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
+// Discrete Subdiv Slider
+document.getElementById('subdiv-slider').oninput = (e) => {
+    subdivisionFactor = parseInt(e.target.value);
+    document.getElementById('subdiv-val').innerText = subdivisionFactor;
+    document.getElementById('subdiv-val-2').innerText = subdivisionFactor;
+};
 
+// Opacity Slider
 document.getElementById('opacity-slider').oninput = (e) => {
     map.setPaintProperty('grid-fill', 'fill-opacity', parseFloat(e.target.value) / 100);
     document.getElementById('opacity-val').innerText = e.target.value;
 };
 
+// Tool Button Events
+document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
+document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
+document.getElementById('btn-mode-subdivide').onclick = () => setMode('subdivide');
+
+// Legend Events
 document.querySelectorAll('.legend-item').forEach(item => {
     item.onclick = () => {
         document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
@@ -250,10 +298,10 @@ document.querySelectorAll('.legend-item').forEach(item => {
     };
 });
 
+// Basemap Toggling
 const updateBase = () => {
     const isBaseOn = document.getElementById('toggle-basemap').checked;
     const selectedMode = document.getElementById('layer-selector').value;
-
     ['vector', 'satellite'].forEach(id => {
         if (map.getLayer(`layer-${id}`)) {
             map.setLayoutProperty(`layer-${id}`, 'visibility', (isBaseOn && selectedMode === id) ? 'visible' : 'none');
