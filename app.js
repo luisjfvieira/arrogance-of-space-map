@@ -2,6 +2,7 @@
 let gridData = { type: 'FeatureCollection', features: [] };
 let existingSquares = new Set();
 let history = []; // Stack for Undo functionality
+let boundaryData = { type: 'FeatureCollection', features: [] };
 const MAX_HISTORY = 20;
 
 let activeLandUse = 'cars';
@@ -284,6 +285,77 @@ const updateBase = () => {
             map.setLayoutProperty(`layer-${id}`, 'visibility', isVisible ? 'visible' : 'none');
         }
     });
+};
+
+// 8. ADMINISTRATIVE SEARCH LOGIC
+async function searchArea() {
+    const query = document.getElementById('search-input').value;
+    if (!query) return;
+
+    // Search OSM Nominatim for Administrative boundaries
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&polygon_geojson=1&limit=1`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+            const result = data[0];
+            boundaryData = {
+                type: 'FeatureCollection',
+                features: [{
+                    type: 'Feature',
+                    geometry: result.geojson,
+                    properties: { name: result.display_name }
+                }]
+            };
+
+            // Update Map Source
+            if (map.getSource('boundary-source')) {
+                map.getSource('boundary-source').setData(boundaryData);
+            } else {
+                addBoundaryLayer();
+            }
+
+            // Fly to the area
+            const bbox = result.boundingbox; // [south, north, west, east]
+            map.fitBounds([[bbox[2], bbox[0]], [bbox[3], bbox[1]]], { padding: 50 });
+            
+        } else {
+            alert("Area not found. Try adding the country name.");
+        }
+    } catch (err) {
+        console.error("Search error:", err);
+    }
+}
+
+function addBoundaryLayer() {
+    map.addSource('boundary-source', { type: 'geojson', data: boundaryData });
+    
+    // The Line (Outline)
+    map.addLayer({
+        id: 'boundary-line',
+        type: 'line',
+        source: 'boundary-source',
+        paint: {
+            'line-color': '#ff00ff', // Bright magenta to stand out
+            'line-width': 3,
+            'line-dasharray': [2, 1]
+        }
+    });
+}
+
+// Event Listeners
+document.getElementById('btn-search').onclick = searchArea;
+document.getElementById('search-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') searchArea();
+});
+
+document.getElementById('toggle-boundary').onchange = (e) => {
+    const visibility = e.target.checked ? 'visible' : 'none';
+    if (map.getLayer('boundary-line')) {
+        map.setLayoutProperty('boundary-line', 'visibility', visibility);
+    }
 };
 
 // Listeners for the Basemap UI
