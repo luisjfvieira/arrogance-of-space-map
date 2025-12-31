@@ -50,7 +50,6 @@ function generateGrid() {
     
     const resMeters = 200; 
     const latStep = resMeters / 111320;
-    // LonStep calculated for Lisbon latitude (~38.7 N)
     const lonStep = resMeters / (111320 * Math.cos(38.7 * Math.PI / 180));
 
     const startLat = Math.floor(bounds.getSouth() / latStep) * latStep;
@@ -102,7 +101,7 @@ map.on('load', () => {
 
 map.on('moveend', generateGrid);
 
-// 5. CLICK INTERACTION (Single Cell)
+// 5. CLICK INTERACTION
 map.on('click', 'grid-fill', (e) => {
     if (currentMode === 'pan') return;
 
@@ -146,7 +145,7 @@ map.on('click', 'grid-fill', (e) => {
     map.getSource('grid-source').setData(gridData);
 });
 
-// 6. WINDOW TOOL (ENFORCED FULL CONTAINMENT)
+// 6. WINDOW TOOL
 map.on('mousedown', (e) => {
     if (currentMode !== 'paint' || !e.originalEvent.shiftKey) return;
     
@@ -173,6 +172,52 @@ map.on('mousemove', (e) => {
 map.on('mouseup', (e) => {
     if (!boxElement) return;
 
-    // Convert selection box edges to geographic coordinates
     const p1 = map.unproject(startPoint);
-    const p2 = map.un
+    const p2 = map.unproject(e.point);
+
+    const minLon = Math.min(p1.lng, p2.lng);
+    const maxLon = Math.max(p1.lng, p2.lng);
+    const minLat = Math.min(p1.lat, p2.lat);
+    const maxLat = Math.max(p1.lat, p2.lat);
+
+    gridData.features.forEach(feature => {
+        const coords = feature.geometry.coordinates[0][0]; 
+        const lon = coords[0];
+        const lat = coords[1];
+
+        if (lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat) {
+            feature.properties.landUse = activeLandUse;
+            feature.properties.color = LAND_USE_COLORS[activeLandUse];
+        }
+    });
+
+    map.getSource('grid-source').setData(gridData);
+
+    boxElement.remove();
+    boxElement = null;
+});
+
+// 7. UI LOGIC & CONTROLS
+function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    const targetBtn = document.getElementById(`btn-mode-${mode}`);
+    if (targetBtn) targetBtn.classList.add('active');
+
+    const instruction = document.getElementById('mode-instruction');
+    if (mode === 'pan') {
+        map.dragPan.enable();
+        map.getCanvas().style.cursor = '';
+        instruction.innerText = "Pan enabled. Use scroll to zoom.";
+    } else {
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'crosshair';
+        instruction.innerText = (mode === 'paint') 
+            ? "Pan locked. Zoom to move. Click or Shift+Drag to paint." 
+            : "Pan locked. Zoom to move. Click a square to split.";
+    }
+}
+
+document.getElementById('btn-mode-pan').onclick = () => setMode('pan');
+document.getElementById('btn-mode-paint').onclick = () => setMode('paint');
+document.getElementById('btn-
