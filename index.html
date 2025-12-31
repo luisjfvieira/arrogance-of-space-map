@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Global Arrogance Explorer</title>
+    <title>Arrogance of space map</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <link rel="stylesheet" href="style.css">
@@ -58,6 +58,16 @@
                 <div class="legend-item" data-use="eraser"><span style="background:rgba(0, 0, 0, 0)"></span> Eraser </div>
             </div>
         </div>
+        <div class="control-group">
+            <label style="font-weight: bold;">Area Search</label>
+            <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <input type="text" id="search-input" placeholder="e.g. Lisbon, Portugal" style="flex-grow:1;">
+            <button id="btn-search">Search</button>
+            </div>
+            <label><input type="checkbox" id="toggle-boundary" checked> Show Search Limits</label>
+        </div>
+        <hr>
+        
     </div>
     <script src="map-config.js"></script>
     <script src="app.js"></script>
