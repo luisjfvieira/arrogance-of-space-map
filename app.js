@@ -131,7 +131,7 @@ map.on('load', () => {
         map.addSource(`src-${id}`, MAP_SOURCES[id]);
         map.addLayer({
             id: `layer-${id}`, type: 'raster', source: `src-${id}`,
-            layout: { visibility: id === 'vector' ? 'visible' : 'none' }
+            layout: { visibility: id === 'satellite' ? 'visible' : 'none' }
         });
     });
     
