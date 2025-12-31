@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Arrogance Explorer</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -9,48 +10,37 @@
 </head>
 <body>
     <div id="map"></div>
+
     <div id="ui-panel">
-        <h2 style="font-size:16px; margin:0 0 10px 0;">Arrogance Explorer</h2>
+        <h2 style="font-size:18px; margin:0 0 15px 0; color: #333;">Arrogance Explorer</h2>
         
         <div class="control-group">
-            <label><input type="checkbox" id="toggle-basemap" checked> Show Base Map</label>
-            <select id="layer-selector">
-                <option value="vector">Street Map (OSM)</option>
-                <option value="satellite">Satellite (Google)</option>
-            </select>
+            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Basemap</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="toggle-basemap" checked>
+                <select id="layer-selector" style="flex-grow: 1;">
+                    <option value="vector">Street Map (OSM)</option>
+                    <option value="satellite">Satellite (Google)</option>
+                </select>
+            </div>
         </div>
 
         <hr>
 
         <div class="control-group">
-            <label>Grid Opacity: <span id="opacity-val">50</span>%</label>
-            <input type="range" id="opacity-slider" min="0" max="100" value="50">
+            <label>Grid Opacity: <span id="opacity-val">60</span>%</label>
+            <input type="range" id="opacity-slider" min="0" max="100" value="60">
         </div>
 
         <div class="control-group">
-            <label>Tool Mode</label>
-            <div class="mode-container">
-                <button id="btn-mode-pan" class="mode-btn active">Explore</button>
-                <button id="btn-mode-paint" class="mode-btn">Paint</button>
-                <button id="btn-mode-subdivide" class="mode-btn">Split</button>
-            </div>
+            <label>Subdivision Factor: <span id="split-val">4</span>x<span id="split-val-2">4</span></label>
+            <input type="range" id="split-slider" min="2" max="10" step="1" value="4">
+            <p style="font-size: 10px; color: #888; margin-top: 4px;">Higher values create more detail but may slow down the map.</p>
         </div>
-        
-        <p id="mode-instruction" style="font-size:10px; color:#666; min-height: 24px;">Pan enabled. Use scroll to zoom.</p>
+
+        <hr>
 
         <div class="control-group">
-            <div id="legend">
-                <div class="legend-item active" data-use="cars"><span style="background:#ff0000"></span> Cars</div>
-                <div class="legend-item" data-use="pedestrians"><span style="background:#0000ff"></span> Peds</div>
-                <div class="legend-item" data-use="cyclists"><span style="background:#800080"></span> Bikes</div>
-                <div class="legend-item" data-use="public transit"><span style="background:#ffa500"></span> Transit</div>
-                <div class="legend-item" data-use="buildings"><span style="background:#ffff00"></span> Build.</div>
-                <div class="legend-item" data-use="green"><span style="background:#008000"></span> Green</div>
-                <div class="legend-item" data-use="dead space"><span style="background:#808080"></span> Dead</div>
-            </div>
-        </div>
-    </div>
-    <script src="map-config.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+            <label style="font-weight: bold; display: block; margin-bottom: 8px;">Tool Mode</label>
+            <div class="mode-container" style="display: flex; gap: 5px;">
+                <button id="btn-mode-pan" class="mode-
