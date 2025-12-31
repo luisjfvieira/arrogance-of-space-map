@@ -141,7 +141,7 @@ map.on('load', () => {
         paint: {
             'fill-color': ['get', 'color'],
             'fill-outline-color': 'rgba(0, 0, 139, 0.4)',
-            'fill-opacity': 0.6 
+            'fill-opacity': 1.00 
         }
     });
     generateGrid();
