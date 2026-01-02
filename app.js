@@ -274,6 +274,9 @@ document.querySelectorAll('.legend-item').forEach(item => {
     };
 });
 
+document.getElementById('btn-save').onclick = downloadConfig;
+document.getElementById('upload-input').onchange = uploadConfig;
+
 // 7. BASEMAP CONTROLS
 const updateBase = () => {
     const isBaseOn = document.getElementById('toggle-basemap').checked;
