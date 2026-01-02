@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Arrogance of space map</title>
+    <div>  1. Choose a location close to where you want to map <br>
+        2. Adjust the level of subdivision per tile you need and select those you can to map <br>
+        3. Choose colours accordingly
+    </div>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <link rel="stylesheet" href="style.css">
@@ -66,7 +70,31 @@
             </div>
             <label><input type="checkbox" id="toggle-boundary" checked> Show Search Limits</label>
         </div>
+
         <hr>
+
+        <div class="config-controls">
+            <button id="btn-save">Save Config</button>
+            
+            <label for="upload-input" class="custom-file-upload">
+                Upload Config
+            </label>
+            <input id="upload-input" type="file" accept=".json" style="display:none;"/>
+        </div>
+        
+        <hr>
+
+        <label>Credit</label>
+        <div class="mode-container">
+            <button id="btn-mode-pan" class="mode-btn active">Explore</button>
+            <button id="btn-mode-paint" class="mode-btn">Paint</button>
+            <button id="btn-mode-subdivide" class="mode-btn">Split</button>
+        </div>
+        
+        
+        <hr>
+
+
         
     </div>
     <script src="map-config.js"></script>
