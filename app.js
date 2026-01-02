@@ -345,6 +345,75 @@ function addBoundaryLayer() {
     });
 }
 
+// Function to download the current state as a .json file
+function downloadConfig() {
+    const config = {
+        gridData: gridData,
+        settings: {
+            subdivisionFactor: subdivisionFactor,
+            activeLandUse: activeLandUse,
+            center: map.getCenter(),
+            zoom: map.getZoom()
+        }
+    };
+
+    const blob = new Blob([JSON.stringify(config)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `map-config-${new Date().getTime()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Function to handle the file upload
+function uploadConfig(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const imported = JSON.parse(e.target.result);
+            
+            // 1. Update Grid Data
+            gridData = imported.gridData;
+            
+            // 2. Rebuild the Set for coordinate tracking
+            existingSquares.clear();
+            gridData.features.forEach(f => {
+                const c = f.geometry.coordinates[0][0];
+                existingSquares.add(getCoordKey(c[0], c[1]));
+            });
+
+            // 3. Restore Settings if they exist
+            if (imported.settings) {
+                subdivisionFactor = imported.settings.subdivisionFactor;
+                // Update UI slider if it exists
+                if(document.getElementById('subdiv-slider')) {
+                    document.getElementById('subdiv-slider').value = subdivisionFactor;
+                    document.getElementById('subdiv-val').innerText = subdivisionFactor;
+                }
+                
+                if (imported.settings.center) {
+                    map.setCenter(imported.settings.center);
+                    map.setZoom(imported.settings.zoom);
+                }
+            }
+
+            // 4. Update the map source
+            map.getSource('grid-source').setData(gridData);
+            alert("Configuration loaded successfully!");
+            
+        } catch (err) {
+            console.error(err);
+            alert("Error parsing the config file.");
+        }
+    };
+    reader.readAsText(file);
+}
+
+
 // Event Listeners
 document.getElementById('btn-search').onclick = searchArea;
 document.getElementById('search-input').addEventListener('keypress', (e) => {
